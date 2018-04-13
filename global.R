@@ -151,10 +151,10 @@ team_table_by_users_pre <- user_results_validation %>% filter(Stage == "Group St
                                    ifelse(Home_Real_Points == 0,3,1))) %>% 
   mutate(GD_Home = user_Home_Goals-user_Away_Goals,
          GD_Away = -GD_Home) %>% 
-   select(`User Name`,Home=true_Home,Away=true_Away,Home_Real_Points,Away_Real_Points,GD_Home,GD_Away)
+   select(`User Name`,Group,Home=true_Home,Away=true_Away,Home_Real_Points,Away_Real_Points,GD_Home,GD_Away)
 
-home = team_table_by_users_pre %>% select(User = `User Name`,Team = Home,Points = Home_Real_Points,GD = GD_Home)
-away = team_table_by_users_pre %>% select(User = `User Name`,Team = Away,Points = Away_Real_Points,GD = GD_Away)
+home = team_table_by_users_pre %>% select(User = `User Name`,Group,Team = Home,Points = Home_Real_Points,GD = GD_Home)
+away = team_table_by_users_pre %>% select(User = `User Name`,Group,Team = Away,Points = Away_Real_Points,GD = GD_Away)
 
 
 team_table_by_users <- bind_rows(home,away)
