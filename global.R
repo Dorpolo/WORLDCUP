@@ -143,6 +143,15 @@ only_rank_for_vlookup <- league_standings %>% select(`User Name`,Rank)
 date.id <- fixtures %>% select(Date,GameID) %>% arrange(GameID) %>% 
             distinct(Date,.keep_all = TRUE) %>% mutate(Day = rank(GameID)) %>% select(-GameID)
 
+# How would the table look like by user's guests (Pre calculate table)
+team_table_by_users <- user_results_validation %>% filter(Stage == "Group Stage") %>% 
+  mutate(Home_Real_Points = ifelse(user_Home_Goals>user_Away_Goals,3,
+                                   ifelse(user_Home_Goals<user_Away_Goals,0,1)),
+         Away_Real_Points = ifelse(Home_Real_Points == 3,0,
+                                   ifelse(Home_Real_Points == 0,3,1))) %>% 
+  mutate(GD_Home = user_Home_Goals-user_Away_Goals,
+         GD_Away = -GD_Home) %>% 
+   select(`User Name`,Home=true_Home,Away=true_Away,Home_Real_Points,Away_Real_Points,GD_Home,GD_Away)
 
 
 
