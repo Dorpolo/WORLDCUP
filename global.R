@@ -1,6 +1,8 @@
 # =========================================================================
 # Load libraries and scripts
 # =========================================================================
+
+
 library(shiny)
 library(ggplot2)
 library(reshape2)
@@ -49,19 +51,19 @@ my_theme <- function() {
 # =========================================================================
 
 fixtures <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX",
-                                              "-1vQ4jRITA24Oj_h-i4cVxEGstFTS7-qKH0bv_pp61h-Jj4G",
-                                              "0t-fLh6TUiZU-Qor1WA2pt50TJkENnCkh/pub?output=csv")),
+                                "-1vQ4jRITA24Oj_h-i4cVxEGstFTS7-qKH0bv_pp61h-Jj4G",
+                                "0t-fLh6TUiZU-Qor1WA2pt50TJkENnCkh/pub?output=csv")),
                      stringsAsFactors = FALSE)
 
 resultes <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vTQKuVDYTvMW9n",
-                                              "B24QGAQ0M5l8xgeUGYbCjGTX3dxeQ1jaklYy-989osaccZgcwVelbzpxq4nZEtP",
-                                              "xw/pub?gid=0&single=true&output=csv")),
+                                "B24QGAQ0M5l8xgeUGYbCjGTX3dxeQ1jaklYy-989osaccZgcwVelbzpxq4nZEtP",
+                                "xw/pub?gid=0&single=true&output=csv")),
                      stringsAsFactors = FALSE)
-                          
+
 User_ID  <- as.data.frame(read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6Wd4NT4ZG6yBf",
                                               "4_ctJnV3-6M8CdQq3K8MTgcB6M_JG1la_2kAIkW2mCa0U6KunkqIq5Wm9US2aDN",
                                               "t/pub?gid=0&single=true&output=csv"))),
-                        stringsAsFactors = FALSE)
+                          stringsAsFactors = FALSE)
 
 
 
@@ -141,9 +143,11 @@ league_standings <- user_results_validation %>% filter(Active_Included == "Compl
 only_rank_for_vlookup <- league_standings %>% select(`User Name`,Rank)
 
 date.id <- fixtures %>% select(Date,GameID) %>% arrange(GameID) %>% 
-            distinct(Date,.keep_all = TRUE) %>% mutate(Day = rank(GameID)) %>% select(-GameID)
+  distinct(Date,.keep_all = TRUE) %>% mutate(Day = rank(GameID)) %>% select(-GameID)
 
-# How would the table look like by user's guests (Pre calculate table)
+user_results_validation$user_Home_Goals <- as.numeric(user_results_validation$user_Home_Goals)
+user_results_validation$user_Away_Goals <- as.numeric(user_results_validation$user_Away_Goals)
+
 team_table_by_users_pre <- user_results_validation %>% filter(Stage == "Group Stage") %>% 
   mutate(Home_Real_Points = ifelse(user_Home_Goals>user_Away_Goals,3,
                                    ifelse(user_Home_Goals<user_Away_Goals,0,1)),
@@ -151,7 +155,7 @@ team_table_by_users_pre <- user_results_validation %>% filter(Stage == "Group St
                                    ifelse(Home_Real_Points == 0,3,1))) %>% 
   mutate(GD_Home = user_Home_Goals-user_Away_Goals,
          GD_Away = -GD_Home) %>% 
-   select(`User Name`,Group,Home=true_Home,Away=true_Away,Home_Real_Points,Away_Real_Points,GD_Home,GD_Away)
+  select(`User Name`,Group,Home=true_Home,Away=true_Away,Home_Real_Points,Away_Real_Points,GD_Home,GD_Away)
 
 home = team_table_by_users_pre %>% select(User = `User Name`,Group,Team = Home,Points = Home_Real_Points,GD = GD_Home)
 away = team_table_by_users_pre %>% select(User = `User Name`,Group,Team = Away,Points = Away_Real_Points,GD = GD_Away)
@@ -160,6 +164,14 @@ away = team_table_by_users_pre %>% select(User = `User Name`,Group,Team = Away,P
 team_table_by_users <- bind_rows(home,away)
 
 
+### All User Guesses ### 
+
+user_guesses <- all_df_list$resultes$df %>% 
+  select(-`Submission ID`) %>% 
+  melt(id = 'User Name') %>% select(User = `User Name`,Match = variable, Resulte = value) %>%
+  inner_join(all_df_list$fixtures$df %>% select(Match = NameID,Stage,Group,Date,Hour,GameID),
+             by = c("Match")) %>% select(User,GameID,Stage,Group,Date,Hour,Match,Resulte) %>% 
+  arrange(GameID)
 
 
 # =========================================================================
