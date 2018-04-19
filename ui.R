@@ -11,7 +11,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                   # Sidebar panel for inputs ----
                   sidebarPanel(
                     
-                 wellPanel(
+                    wellPanel(
                       titlePanel(paste("League Filters : ")),
                       sliderInput(inputId ="game_number",
                                   label ="Game Number:",
@@ -33,13 +33,13 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                   label =  "User Name :",
                                   choices  = choices$userID,
                                   selected = choices$userID,
-                                  multiple = TRUE)),                    
+                                  multiple = TRUE)),
+                    
                     h5("Russia 2018", img(src='https://fsprdcdnpublic.azureedge.net/global-pictures/tournaments-sq-4/254645_w' ),
-                          "Friends Zone",
-                         img(src=paste0(as.character(User_ID$Picture[10])),
+                       "Friends Zone",
+                       img(src=paste0(as.character(User_ID$Picture[10])),
                            height = "60px"),img(src=paste0(as.character(User_ID$Picture[2])),
-                           height = "60px"))
-
+                                                height = "60px"))
                     
                   ),
                   
@@ -55,11 +55,17 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                 tabPanel(title = "Pre Game Statistics",
                                          h4("Pre Game Stats"),
                                          plotOutput(outputId = "piechart")),
-                                tabPanel(title = "All Users Guesses",
+                                tabPanel(title =  'Live Game',
+                                         h4("Live Game Fan Zone")),
+                                tabPanel(title =  'CUP',
+                                         h4("Welcome to the CUP Zone")),
+                                tabPanel(title = "User Guesses",
                                          h4("All User Guesses"),
                                          DT::dataTableOutput(outputId = "user_guess"),
                                          br(),
-                                         DT::dataTableOutput(outputId = "table.a"))      
+                                         DT::dataTableOutput(outputId = "table.a"))
+                                
+                                
                                 
                                 # Single line break for a little bit of visual separation
                                 # Horizontal line for visual separation
@@ -68,3 +74,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                   )
                 )
 )
+
+
+
+
