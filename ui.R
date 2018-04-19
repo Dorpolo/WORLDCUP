@@ -11,7 +11,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                   # Sidebar panel for inputs ----
                   sidebarPanel(
                     
-                    wellPanel(
+                 wellPanel(
                       titlePanel(paste("League Filters : ")),
                       sliderInput(inputId ="game_number",
                                   label ="Game Number:",
@@ -21,35 +21,25 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                   label = "Game Status :",
                                   choices = choices$Active,
                                   selected ="Complited Games",
-                                  multiple = TRUE),
-                      # Select variables for the League Table
-                      selectInput(inputId = "Round",
-                                  label =  "Round:",
-                                  choices = choices$Round,
-                                  selected = unique(user_results_validation$Round),
-                                  multiple = TRUE),
-                      selectInput(inputId = "Group",
-                                  label =  "Group:",
-                                  choices = choices$Group,
-                                  selected = unique(user_results_validation$Group),
-                                  multiple = TRUE),
-                      br())      , # Horizontal line for visual separation
+                                  multiple = TRUE)), # Horizontal line for visual separation
                     wellPanel(
                       # Select variables for the PIE CHART
                       selectInput(inputId = "nameID",
                                   label =  "Game :",
                                   choices  = choices$nameID,
-                                  selected = FALSE,
+                                  selected = current_Game_Name,
                                   multiple = FALSE),
                       selectInput(inputId = "userID",
                                   label =  "User Name :",
                                   choices  = choices$userID,
                                   selected = choices$userID,
-                                  multiple = TRUE)),
-                    
-                    h3("World Cup 2018",
-                       img(src = "https://upload.wikimedia.org/wikipedia/en/thumb/6/67/2018_FIFA_World_Cup.svg/1200px-2018_FIFA_World_Cup.svg.png",
-                           height = "60px"),"The Official Friends Zone")
+                                  multiple = TRUE)),                    
+                    h5("Russia 2018", img(src='https://fsprdcdnpublic.azureedge.net/global-pictures/tournaments-sq-4/254645_w' ),
+                          "Friends Zone",
+                         img(src=paste0(as.character(User_ID$Picture[10])),
+                           height = "60px"),img(src=paste0(as.character(User_ID$Picture[2])),
+                           height = "60px"))
+
                     
                   ),
                   
