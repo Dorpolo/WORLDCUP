@@ -189,10 +189,10 @@ choices <- list(
 
 
 ### Color Palette ###
-worldcup_palette <- list(backround =   list(main = "#4e5d6c"),
-                      lines =       list(darkblue = "#2b3e50",
-                                         red_cup =  "#a8251f",
-                                         light_blue_cup = "#006da8"),
-                      data_labels = list(darkblue = "#00384A",
-                                         light_green = "#B0D494",
-                                         light_brune = "#B6A78D"))
+worldcup_palette <- list(backround  = list(main = "#4e5d6c"),
+                         lines      = list(darkblue = "#2b3e50",
+                                           red_cup =  "#a8251f",
+                                           light_blue_cup = "#006da8"),
+                        data_labels = list(darkblue = "#00384A",
+                                           light_green = "#B0D494",
+                                           light_brune = "#B6A78D"))
