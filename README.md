@@ -1,4 +1,4 @@
- ######     World Cup Mundi Friends Zone is the world's biggest "World Cup as a Service" Platform     ######
- ######        real time web & mobile platform using R Shiny application based on the world cup games ######
+ ######   World Cup Mundi Friends Zone is the world's biggest "World Cup as a Service" Platform          ######
+ ######   Which empowered user's world cup exprience using advanced real on top of user's guesses & bets #####
  
  
