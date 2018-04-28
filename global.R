@@ -52,7 +52,7 @@ my_theme <- function() {
 
 fixtures <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX",
                                 "-1vQ4jRITA24Oj_h-i4cVxEGstFTS7-qKH0bv_pp61h-Jj4G",
-                                "0t-fLh6TUiZU-Qor1WA2pt50TJkENnCkh/pub?output=csv")),
+                                "0t-fLh6TUiZU-Qor1WA2pt50TJkENnCkh/pub?gid=0&single=true&output=csv")),
                      stringsAsFactors = FALSE)
 
 resultes <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vTQKuVDYTvMW9n",
@@ -60,11 +60,30 @@ resultes <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-
                                 "xw/pub?gid=0&single=true&output=csv")),
                      stringsAsFactors = FALSE)
 
+
+
+resultes_knokout <- as.data.frame(read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vSOkvRyeKlUP",
+                                        "vNwNScSsL-_FfXYOtVGRZqI2NUSq7NkxHS8T4If7Q0GJUhCWkiqgpFGHYkF3AgVXyPS/",
+                                        "pub?gid=0&single=true&output=csv"))),stringsAsFactors = FALSE)
+
+
 User_ID  <- as.data.frame(read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6Wd4NT4ZG6yBf",
                                               "4_ctJnV3-6M8CdQq3K8MTgcB6M_JG1la_2kAIkW2mCa0U6KunkqIq5Wm9US2aDN",
                                               "t/pub?gid=0&single=true&output=csv"))),
                           stringsAsFactors = FALSE)
 
+# Need to be added in production #
+{
+### resultes <- resultes[1:nrow(User_ID),]
+### resultes_knokout <- resultes_knokout[1:nrow(User_ID),]
+}
+
+
+#### Adjustments between results_knockout col names to game names ###
+
+knokout_col_adj <- data_frame(GameID = fixtures$GameID[49:64],
+                              original_fixture_name = fixtures$NameID[49:64],
+                              resultes_knokout_name = (names(resultes_knokout)[-c(1,2)])[seq(1,32,by=2)])
 
 
 #list which containes all application data frames
@@ -79,24 +98,31 @@ all_df_list <- list(userID =   list(df = User_ID),
   
   worldcup_points <- function(x)
   {
-    if(x$started == "TRUE")
+    if(x$started %in% c("TRUE"))
     {
+      user <- c(x$user_Home_Goals,x$user_Away_Goals,x$user_Direction)
+      true <- c(x$true_Home_Goals,x$true_Away_Goals,x$true_Direction)
       if(x$Stage == "Group Stage")
       {
-        f <- x$true_Direction 
-        user <- c(x$user_Home_Goals,x$user_Away_Goals,x$user_Direction)
-        true <- c(x$true_Home_Goals,x$true_Away_Goals,x$true_Direction)
         return(ifelse(sum(user == true) == 3,3,ifelse(user[3] == true[3],1,0)))
-      }else{return(0)}
+      }else{
+        return(ifelse(sum(user == true) == 3 ,
+                      4,
+                      ifelse(user[3] == true[3] | (user[1:2] == true[1:2] & user[3] != true[3]),
+                             1,
+                             0)))
+        }
     }else{return(0)}
   }
 }
+
 
 # Union between true & user resultes , create one version of anlysis ready table by each relevant parameter
 names(all_df_list$resultes$df) <- gsub("..."," - ",names(all_df_list$resultes$df),fixed = TRUE)
 names(all_df_list$resultes$df) <- gsub("."," ",names(all_df_list$resultes$df),fixed = TRUE)
 names(all_df_list$userID$df) <- gsub("."," ",names(all_df_list$userID$df),fixed = TRUE)
 
+####### All Results from group stage  ##########
 
 resultes_edited <- all_df_list$resultes$df %>%
   melt(id = c("User Name","Submission ID")) %>%
@@ -109,13 +135,41 @@ resultes_edited <- all_df_list$resultes$df %>%
   inner_join(all_df_list$fixtures$df,
              by = c("NameID"))
 
+####### All Results from Knockout stage  ##########
+
+resultes_knokout_edited = resultes_knokout %>% 
+  gather(variable, value, -c(User.Name,Submission.ID)) %>% 
+  select(`User Name` = User.Name,
+         `Submission ID` = Submission.ID,variable,value) %>% 
+  filter(!(value %in% c('NA',"") | is.na(value) ) ) %>% 
+  mutate(Game = substr(variable,1,regexpr("_",variable)+1) ) %>% 
+  group_by(`User Name`,`Submission ID`,Game) %>% 
+  summarise(variable = paste0(value,collapse = ";")) %>% 
+  separate(variable,c("variable","user_Direction_pre"),";") %>% 
+  inner_join(knokout_col_adj,by = c('Game'='resultes_knokout_name')) %>%
+  separate(original_fixture_name,c("user_Home","user_Away")," - ") %>% 
+  separate(variable,c("user_Home_Goals","user_Away_Goals"),"-") %>% 
+  mutate(NameID = paste0(user_Home," - ",user_Away)) %>% 
+  mutate(user_dir_validation = ifelse(`user_Home_Goals`>`user_Away_Goals`,"Home",
+                                      ifelse(`user_Home_Goals`==`user_Away_Goals`,"Draw",
+                                             "Away")),
+         user_Direction = ifelse(user_dir_validation == 'Draw',user_Direction_pre,user_dir_validation)) %>%
+  select(`User Name`,`Submission ID`,user_Home,user_Away,user_Home_Goals,user_Away_Goals,user_Direction,NameID) %>%
+  inner_join(all_df_list$fixtures$df,by = c("NameID"))
+
+
+resultes_edited <- bind_rows(resultes_edited,resultes_knokout_edited)
 
 # Points vector, for each game,user. will be mutate to the "resultes_edited" table
+
+
 
 user_game_points <- rep(NA,nrow(resultes_edited))
 
 for(i in 1:nrow(resultes_edited)){
   user_game_points[i] <- worldcup_points(resultes_edited[i,])}
+
+
 
 user_results_validation <- resultes_edited %>% mutate(user_game_points,
                                                       boom = ifelse(user_game_points>1,TRUE,FALSE),
@@ -167,6 +221,13 @@ team_table_by_users <- bind_rows(home,away)
 
 
 ### All User Guesses ### 
+temp_resultes_knokout <- (resultes_knokout %>% 
+                            select(`Submission ID` = Submission.ID,
+                                   `User Name`=User.Name,everything()))[,
+                                                                        c(1,2,seq(3,16*2+2,2))]
+
+names(temp_resultes_knokout)[-c(1,2)] <- fixtures$NameID[49:64]
+
 
 user_guesses <- all_df_list$resultes$df %>% 
   select(-`Submission ID`) %>% 
@@ -241,12 +302,24 @@ rownames(rank) <- c()
 names(rank)[1] <- 'user'
 
 user_rank_by_day <- rank %>% melt(id = c('user')) %>% select(User=user,Day=variable,Rank=value) %>%
-  mutate(alpha = 1, x = 0.75 ,x.2 = current_competition_day+0.25)
+  mutate(alpha = 1,
+         x   = ifelse(current_competition_day<7,0.975,ifelse(current_competition_day<15,0.85,0.75)) ,
+         x.2 = ifelse(current_competition_day<7,current_competition_day+0.025,ifelse(current_competition_day<15,
+                                                                                     current_competition_day+0.15,
+                                                                                     current_competition_day+0.25) ))
 
 user_rank_by_day$Rank <- as.numeric(user_rank_by_day$Rank)
 
-################################################################################
-###  Network Graph ###
 
 
-                                                                
+
+
+#########################  CUP POINTS #################################
+ current_cup_stage <- fixtures$Cup_ID[which(fixtures$GameID == current_game)]  
+
+
+cup <- user_results_validation %>% 
+  select(User = `User Name`,GameID,Cup_ID,Points = user_game_points) %>% 
+  mutate(CUPID = substr(Cup_ID,1,1)) %>% 
+  filter(CUPID != '0') %>% 
+  group_by(User,CUPID) %>% summarise(Points = sum(Points)) %>% arrange(CUPID,desc(Points))
