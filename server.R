@@ -1,26 +1,28 @@
 
 
-server <- function(input, output) {
+server <- function(input, output, session) {
   
-
-    polo <- reactive({
-      user_results_validation %>% filter(  Active_Included %in% input$inActive &
-                                             GameID >= input$game_number[1] & 
-                                             GameID <= input$game_number[2] ) })
-
   
-    polo <- reactive({ 
-      if(input$somevalue){user_results_validation %>% filter(  Active_Included %in% c("Active Games",'Complited Games') &
-                                                                 GameID >= input$game_number[1] & 
-                                                                 GameID <= input$game_number[2] ) 
-      }else {user_results_validation %>% filter(  Active_Included %in% c('Complited Games') &
-                                                    GameID >= input$game_number[1] & 
-                                                    GameID <= input$game_number[2] )} 
-      
-    })
-       
-   
-
+  polo <- reactive({
+    user_results_validation %>% filter(  Active_Included %in% input$inActive &
+                                           GameID >= input$game_number[1] & 
+                                           GameID <= input$game_number[2] ) })
+  
+  
+  
+  
+  polo <- reactive({ 
+    if(input$somevalue){user_results_validation %>% filter(  Active_Included %in% c("Active Games",'Complited Games') &
+                                                               GameID >= input$game_number[1] & 
+                                                               GameID <= input$game_number[2] ) 
+    }else {user_results_validation %>% filter(  Active_Included %in% c('Complited Games') &
+                                                  GameID >= input$game_number[1] & 
+                                                  GameID <= input$game_number[2] )} 
+    
+  })
+  
+  
+  
   
   output$league_table <- DT::renderDataTable({
     DT::datatable(data = polo() %>% 
@@ -34,8 +36,11 @@ server <- function(input, output) {
                             desc(Boom),
                             desc(`Winning Goals`)) %>% 
                     left_join(only_rank_for_vlookup,by = c("User Name")) %>% select(Rank,everything()),
-                  options = list(pageLength = 10,autoWidth = TRUE,
-                                 columnDefs = list(list(width = '600px', targets =  'Boom'))), 
+                  options = list(pageLength = 10,
+                                 columnDefs = list(list(width = 200, targets =  "_all" )),
+                                 scrollX=TRUE,
+                                 scrollCollapse=TRUE,
+                                 pageLength = 30, lengthMenu = c(10,20,30)), 
                   rownames = FALSE,
                   class = 'cell-border stripe') %>% 
       formatStyle('Rank',
@@ -63,11 +68,20 @@ server <- function(input, output) {
             legend.direction = "horizontal",
             legend.title = element_blank())})
   
-
+  
   ##################
-
+  
   polo_3 <- reactive({user_rank_by_day %>% filter(`User` %in% input$userID)})
-
+  
+  observe({
+    if ("Select All" %in% input$userID) {
+      # choose all the choices _except_ "Select All"
+      selected_choices <- setdiff(choices$userID, "Select All")
+      updateSelectInput(session, 'userID', selected = selected_choices)
+    }
+  })
+  
+  
   ###################
   output$lineplot <- renderPlot({
     
@@ -89,7 +103,7 @@ server <- function(input, output) {
            subtitle = "Users ranked by overall points after each competition Day") + my_theme()
   })
   
-
+  
   polo_4 <- reactive({ team_table_by_users  %>%
       filter(User %in% input$userID) 
   })
@@ -102,7 +116,7 @@ server <- function(input, output) {
                           GD = sum(GD)) %>% arrange(Group,desc(Points),desc(GD)) %>% 
                 mutate(Rank=row_number(),`Won Stage` = ifelse(Rank %in% c(1,2),"Yes","No")) ,
               options = list(pageLength = 32,autoWidth = TRUE,
-                             columnDefs = list(list(width = '10px', targets = "_all"))), 
+                             columnDefs = list(list(width = '5%', targets = "_all"))), 
               rownames = FALSE,
               class = 'cell-border stripe') %>% 
       formatStyle("Won Stage",
@@ -110,14 +124,14 @@ server <- function(input, output) {
                   color = styleEqual(c('Yes','No'),c('green','red'))) 
     
   })
-  names(user_guesses)
+  
   polo_5 <- reactive({ user_guesses %>%
       filter(User %in% input$userID) %>% select(-c(GameID,Hour,Stage))
   })
   
   output$user_guess <- renderDataTable({
     datatable(data = polo_5(),
-              options = list(pageLength = 48,autoWidth = TRUE,
+              options = list(pageLength = 48,
                              columnDefs = list(list(width = '10px', targets = "_all"))), 
               rownames = FALSE,
               class = 'cell-border stripe') %>% 
@@ -128,19 +142,18 @@ server <- function(input, output) {
     
   })
   
-  output$image1 <- renderUI({tags$img(src=User_ID$Picture[1],height = "60px")})
-  output$image2 <- renderUI({tags$img(src=User_ID$Picture[2],height = "60px")})
-  output$image3 <- renderUI({tags$img(src=User_ID$Picture[3],height = "60px")})
-  output$image4 <- renderUI({tags$img(src=User_ID$Picture[4],height = "60px")})
-  output$image5 <- renderUI({tags$img(src=User_ID$Picture[5],height = "60px")})
-  output$image6 <- renderUI({tags$img(src=User_ID$Picture[6],height = "60px")})
-  output$image7 <- renderUI({tags$img(src=User_ID$Picture[7],height = "60px")})
-  output$image8 <- renderUI({tags$img(src=User_ID$Picture[8],height = "60px")})
-  output$image9 <- renderUI({tags$img(src=User_ID$Picture[9],height = "60px")})
-  output$image10 <- renderUI({tags$img(src=User_ID$Picture[10],height = "60px")})
+  output$cup_table <- renderDataTable({
+    datatable(data =the_data ,
+              options = list(pageLength = 32,
+                             columnDefs = list(list(width = '5%', targets = "_all"))), 
+              rownames = FALSE,
+              class = 'cell-border stripe')     
+  })
+  
+  
   output$imagecup <- renderUI({tags$img(src='https://fsprdcdnpublic.azureedge.net/global-pictures/tournaments-sq-4/254645_w',height = "300px")})
-    
   
-  
-  
+  output$terms1 <- renderUI({tags$img(src= 'http://i67.tinypic.com/2d26umw.png',height = "600px")})
+  output$terms2 <- renderUI({tags$img(src= 'http://i64.tinypic.com/2ed8bjl.png',height = "600px")})
+  output$terms3 <- renderUI({tags$img(src= 'http://i67.tinypic.com/o07780.png',height = "600px")})
 }
