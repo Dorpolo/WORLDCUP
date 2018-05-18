@@ -3,16 +3,8 @@
 server <- function(input, output, session) {
   
   
-  polo <- reactive({
-    user_results_validation %>% filter(  Active_Included %in% input$inActive &
-                                           GameID >= input$game_number[1] & 
-                                           GameID <= input$game_number[2] ) })
-  
-  
-  
-  
   polo <- reactive({ 
-    if(input$somevalue){user_results_validation %>% filter(  Active_Included %in% c("Active Games",'Complited Games') &
+    if(input$somevalue){user_results_validation %>% filter( Active_Included %in% c("Active Games",'Complited Games') &
                                                                GameID >= input$game_number[1] & 
                                                                GameID <= input$game_number[2] ) 
     }else {user_results_validation %>% filter(  Active_Included %in% c('Complited Games') &
@@ -26,16 +18,16 @@ server <- function(input, output, session) {
   
   output$league_table <- DT::renderDataTable({
     DT::datatable(data = polo() %>% 
-                    group_by(`User Name`) %>% 
+                    group_by(`User_Nick`) %>% 
                     summarise(Points = sum(user_game_points),
                               Boom = sum(boom),
-                              `Winning Goals` = sum(winning_goals),
+                              WG = sum(winning_goals),
                               Pct = percent(sum(user_game_points)/(4*sum(Active_Included=="Complited Games")-sum(Active_Included=="Complited Games"&Stage=="Group Stage"))),
                               Games = sum(started == TRUE)) %>% 
                     arrange(desc(Points),
                             desc(Boom),
-                            desc(`Winning Goals`)) %>% 
-                    left_join(only_rank_for_vlookup,by = c("User Name")) %>% select(Rank,everything()),
+                            desc(WG)) %>% 
+                    left_join(only_rank_for_vlookup,by = c("User_Nick")) %>% select(Rank,Name = `User_Nick`,everything()),
                   options = list(pageLength = 10,
                                  columnDefs = list(list(width = 200, targets =  "_all" )),
                                  scrollX=TRUE,
@@ -157,3 +149,9 @@ server <- function(input, output, session) {
   output$terms2 <- renderUI({tags$img(src= 'http://i64.tinypic.com/2ed8bjl.png',height = "600px")})
   output$terms3 <- renderUI({tags$img(src= 'http://i67.tinypic.com/o07780.png',height = "600px")})
 }
+
+
+
+
+
+
