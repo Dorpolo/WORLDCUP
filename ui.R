@@ -1,5 +1,19 @@
 ######################## UI Component #############################
 
+fixtures <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX",
+                                "-1vQ4jRITA24Oj_h-i4cVxEGstFTS7-qKH0bv_pp61h-Jj4G",
+                                "0t-fLh6TUiZU-Qor1WA2pt50TJkENnCkh/pub?gid=0&single=true&output=csv")),
+                     stringsAsFactors = FALSE)
+
+choices <- list(
+  Round = unique(user_results_validation$Round),
+  Group =unique(user_results_validation$Group),
+  nameID = unique(user_results_validation$NameID),
+  userID = unique(sort(user_results_validation$`User_Nick`)),
+  Active =  unique(sort(user_results_validation$Active_Included)),
+  Cup = unique((fixtures %>% filter(Cup_Stage != "None"))$Cup_Stage)
+)
+
 
 
 ui <- fluidPage(theme = shinytheme("superhero"),
@@ -45,7 +59,12 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                         checkboxInput(inputId = "somevalue",
                                       label = h4("Active Games Included"),
                                       value = FALSE,
-                                      width = validateCssUnit(200)))
+                                      width = validateCssUnit(200))),
+                    selectInput(inputId = "cup_round",
+                                label =  "Cup Round:",
+                                choices  = choices$Cup,
+                                selected = choices$Cup[1],
+                                multiple = TRUE)
                     
                     
                   ),
@@ -66,12 +85,8 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                 tabPanel(title =  'Live Game',
                                          h4("Live Game Fan Zone")),
                                 tabPanel(title =  'CUP',
-                                         h4("Welcome to the CUP Zone"),
-                                         fluidRow(column(8,
-                                                         DT::dataTableOutput(outputId = "cup_table")), 
-                                                  column(4,
-                                                         uiOutput(outputId = "imagecup")))
-                                         
+                                         h2("CUP Zone"),
+                                          DT::dataTableOutput(outputId = "cup_table")       
                                 ),
                                 tabPanel(title = "User Guesses",
                                          h4("All User Guesses"),
@@ -83,10 +98,6 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                          uiOutput(outputId = "terms2"),
                                          uiOutput(outputId = "terms3"))
                                 
-                                
-                                
-                                # Single line break for a little bit of visual separation
-                                # Horizontal line for visual separation
                                 
                     )      
                   )
