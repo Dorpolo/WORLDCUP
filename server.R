@@ -47,11 +47,11 @@ server <- function(input, output, session) {
                     left_join(only_rank_for_vlookup,by = c("User_Nick")) %>% 
                     left_join(User_ID %>% select(User_Nick,Img),by = c("User_Nick")) %>% 
                    select(Rank,User=Img,Name = `User_Nick`,everything()),
-                  options = list(pageLength = 10,
+                  options = list(pageLength = 31, 
                                  columnDefs = list(list(width = 200, targets =  "_all" )),
                                  scrollX=TRUE,
                                  scrollCollapse=TRUE,
-                                 pageLength = 30, lengthMenu = c(10,20,30)), 
+                                 lengthMenu = c(10,20,30)), 
                   rownames = FALSE,
                    escape = FALSE,
                   class = 'cell-border stripe') %>% 
