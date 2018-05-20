@@ -343,10 +343,8 @@ cup_points <- user_results_validation %>%
 
 
 data_cup <- cup_points %>% left_join(User_ID %>% 
-                                       select(User = User_Nick,Draw_32)) %>% 
-  arrange(Draw_32) %>% 
-  filter(CUPID == 1)
-
+                                       select(User = User_Nick,Draw_32)) %>% arrange(Draw_32) 
+  
 
 vec <- rep(c(rep(TRUE,4),rep(FALSE,4)),nrow(data_cup)/8)
 
