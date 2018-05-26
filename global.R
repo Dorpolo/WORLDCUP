@@ -3,6 +3,7 @@
 # =========================================================================
 
 
+
 library(shiny)
 library(ggplot2)
 library(reshape2)
@@ -71,12 +72,6 @@ User_ID <- as.data.frame(read.csv(url(paste0('https://docs.google.com/spreadshee
 
 
 resultes <- resultes %>% left_join(User_ID %>% select(Full.Name,User_Nick),by = c('User.Name'='Full.Name'))
-
-# Need to be added in production #
-{
-  ### resultes <- resultes[1:nrow(User_ID),]
-  ### resultes_knokout <- resultes_knokout[1:nrow(User_ID),]
-}
 
 
 #### Adjustments between results_knockout col names to game names ###
@@ -341,10 +336,15 @@ cup_points <- user_results_validation %>%
   mutate(Bet = paste0(Home,"-",Away),
          Result = paste0(true_Home_Goals,"-",true_Away_Goals)) %>% select(-c(true_Home_Goals,true_Away_Goals,Home,Away))
 
+auto_32_winner <- as.character(User_ID$User_Nick[which(User_ID$Draw_32 == 0)])
+data_cup <- cup_points %>% filter(!(User %in% auto_32_winner)) %>% left_join(User_ID %>% 
+                                       select(User = User_Nick,Draw_32)) %>% 
+  arrange(Draw_32,User) %>% filter(GameID < 53)
+
 
 data_cup <- cup_points %>% left_join(User_ID %>% 
-                                       select(User = User_Nick,Draw_32)) %>% arrange(Draw_32) 
-  
+                                       select(User = User_Nick,Draw_32)) %>% 
+  arrange(Draw_32) 
 
 vec <- rep(c(rep(TRUE,4),rep(FALSE,4)),nrow(data_cup)/8)
 
