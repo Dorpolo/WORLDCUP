@@ -353,3 +353,4 @@ data_cup_b <- data_cup[which(vec==FALSE),]%>% select(-c(CupID,User_Cup_ID)) %>% 
 
 the_data <- data_cup_a %>% inner_join(data_cup_b,by=c('GameID','CupID','Game','Result','Draw_32')) %>% select(-c(GameID,CupID,Draw_32))
 
+# Up to 27/5/2018
