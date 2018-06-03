@@ -852,6 +852,132 @@ DT::  datatable(data = user_predictions,
 
     })
 
+
+
+################ Dorki ###########################
+
+next_game_tbl <- reactive({
+  resultes_edited %>%
+    filter(NameID %in% input$nameID) %>%
+    mutate(team_direction = ifelse(user_Direction == "Away",
+      user_Away,
+      ifelse(user_Direction == "Home",
+        user_Home, user_Direction
+      )
+    )) %>%
+    group_by(team_direction) %>%
+    summarise(count = n()) %>%
+    mutate(
+      sum = sum(count),
+      proportion = round(count / sum(count), 3) * 100
+    )
+})
+
+
+  #### Viz output I
+  
+output$pre_game_I <- renderPlot({
+  ggplot(next_game_tbl(), aes(y = proportion, x = "", fill = team_direction)) +
+    geom_bar(width = 1, stat = "identity") +
+    coord_polar(theta = "y") +
+    geom_label(aes(label = paste(team_direction, "\n", round((count / sum * 100), 0), "%")),
+      position = position_stack(vjust = 0.5),
+      size = 4,
+      color = "white",
+      fontface = "bold"
+    ) +
+    scale_fill_manual(values = c("#B0D494", "#B6A78D", "#006da8")) +
+    theme(
+      plot.margin = unit(c(0,0,0,0), "mm"),
+      panel.grid.major = element_blank(),
+      plot.background = element_rect(fill = "#2b3e50", colour = "#2b3e50"),
+      plot.title = element_text(hjust = 0.5, size = 50),
+      plot.subtitle = element_text(hjust = 0.5),
+      panel.grid.minor = element_blank(),
+      panel.background = element_rect(fill = "#2b3e50", colour = "#2b3e50"),
+      axis.text.y = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.ticks.y = element_blank(),
+      axis.title.y = element_blank(),
+      axis.title.x = element_blank(),
+      legend.position = "none",
+      axis.text.x = element_blank()
+    )
+})
+
+
+  ### Score distribution 
+
+  #### Data prep
+  
+resultes_edited$bet_score <- with(resultes_edited, paste(user_Home_Goals,
+  "-",
+  user_Away_Goals,
+  sep = ""
+))
+
+position_bar <- seq(1:length(bet_score))
+sort_by_helper <- as.data.frame(cbind(bet_score, position_bar))
+sort_by_helper$c <- as.character(sort_by_helper$bet_score)
+sort_by_helper$position_bar <- as.numeric(as.character(sort_by_helper$position_bar))
+
+  #### Table prep
+
+next_game_unique_res <- reactive({
+  resultes_edited %>%
+    filter(NameID == input$nameID) %>%
+    select(bet_score) %>%
+    distinct(bet_score)
+})
+  
+next_game_scores <- reactive({
+  resultes_edited %>%
+    filter(NameID == input$nameID) %>%
+    group_by(bet_score) %>%
+    summarise(count = n()) %>%
+    mutate(
+      sum = sum(count),
+      proportion = round(count / sum(count), 3) * 100
+    ) %>%
+    left_join(sort_by_helper, by = "bet_score") %>%
+    arrange(desc(position_bar)) %>%
+    mutate(bet_score = factor(bet_score,
+      levels = bet_score[1:nrow(next_game_unique_res())]
+    ))
+})
+
+
+  #### Viz output II
+  
+output$pre_game_II <- renderPlot({
+  par(bg = "#2b3e50")
+  ggplot(next_game_scores(), aes(y = proportion, x = bet_score, fill = count)) +
+    geom_col(position = "dodge") +
+    scale_fill_continuous(low = "#006da8", high = "#B0D494") +
+    geom_text(aes(label = count),
+      position = position_dodge(width = 1), hjust = -0.5,
+      size = 5, color = "white"
+    ) +
+    theme(
+      plot.margin = unit(c(0,0,0,0), "mm"),
+      panel.grid.major = element_blank(),
+      plot.background = element_rect(fill = "#2b3e50", colour = "#2b3e50"),
+      plot.title = element_text(hjust = 0.5, size = 20, color = "white"),
+      plot.subtitle = element_text(hjust = 0.5),
+      panel.grid.minor = element_blank(),
+      panel.background = element_rect(fill = "#2b3e50", colour = "#2b3e50"),
+      axis.text.x = element_blank(),
+      axis.text.y = element_text(size = 16, color = "white"),
+      axis.ticks.x = element_blank(),
+      axis.ticks.y = element_blank(),
+      axis.title.y = element_blank(),
+      axis.title.x = element_blank(),
+      legend.position = "none"
+    ) +
+    coord_flip()
+})
+  
+
 }
 
 
