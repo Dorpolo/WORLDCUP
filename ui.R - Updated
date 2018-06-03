@@ -605,7 +605,7 @@ date.id <- fixtures %>% select(Date,GameID) %>% arrange(GameID) %>%
 
 
 # Define UI for app that draws a histogram ----
-ui <- fluidPage(
+ui <- fluidPage(theme = shinytheme("superhero"),
 
   # App title ----
   titlePanel("World Cup Friends Zone"),
@@ -664,9 +664,10 @@ ui <- fluidPage(
                                          br(),
                                          plotOutput(outputId = "lineplot",
                                                     click = "plot_click")),
-                                tabPanel(title = "Pre Game Statistics",
+         tabPanel(title = "Pre Game",
                                          h4("Pre Game Stats"),
-                                         plotOutput(outputId = "piechart")),
+                                         plotOutput(outputId = "pre_game_I", width = "250px", height = "250px"),
+                                         plotOutput(outputId = "pre_game_II", width = "350px", height = "600px")),
                                 tabPanel(title =  'Live Game',
                                          h4("Live Game Fan Zone"),
                                          DT::dataTableOutput(outputId = "result_table"),
