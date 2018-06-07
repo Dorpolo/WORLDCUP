@@ -81,9 +81,9 @@
   
   cup_palate <- list(winner = '#82E0AA',
                      loser  = '#CD6155',
-                     draw = '#ED99E8',
-                     game_over =' #515A5A',
-                     future_game = '#515A5A')
+                     draw = '#EB984E',
+                     game_over =' #FEF5E7',
+                     future_game = '#F7F9F9')
   
   
   # Dor's Rank
@@ -587,6 +587,121 @@ date.id <- fixtures %>% select(Date,GameID) %>% arrange(GameID) %>%
   
 }
 
+
+##### Cup Data Preperation ####
+
+### Function that generate cup ready data frame in a given dataset (which I created above)
+cup_gen <- function(x,n=60,k=4) # x is the relevant dataframe, n = N_users*number_of_games_in_stage/2 k = Number of games in cup Stage
+{
+  the_data_img <- x %>% 
+    left_join(User_ID %>% select(User_Nick,Img),by=c('User.x'='User_Nick')) %>% 
+    left_join(User_ID %>% select(User_Nick,Img),by=c('User.y'='User_Nick')) %>% 
+    select(User.x = Img.x,Bet.x,Pts.x=Points.x,Game,Result,User.y=Img.y,Bet.y,Pts.y=Points.y)
+  
+  names_x <- as.character(unique(the_data_img$User.x))
+  names_y <- as.character(unique(the_data_img$User.y))
+  n_user_div_2 <- length(names_y)
+  
+  the_data_img_con <- the_data_img %>%
+    left_join(fixtures %>% select(NameID,Cup_Stage),by = c('Game'='NameID')) %>%
+    group_by(User.x,Cup_Stage) %>%
+    mutate(Agg.Pts.x = cumsum(Pts.x)) %>%  
+    group_by(User.y,Cup_Stage) %>% 
+    mutate(Agg.Pts.y = cumsum(Pts.y))  %>%  
+    select(User.x,Bet.x,Pts.x ,Agg.Pts.x,Game,Result,Stage=Cup_Stage,User.y,Bet.y,Pts.y,Agg.Pts.y) %>%
+    ungroup() %>% mutate(Rank = rep_len(c(rep(1,k),rep(0,k)),n))
+  
+  game_status <- fixtures %>% 
+    select(Game = NameID,
+           Active_Included,
+           GameID,
+           Stage = Cup_Stage) %>% 
+    filter(GameID>48) 
+  
+  cup_col_by_user <- the_data_img_con %>% left_join(User_ID %>% 
+                                                      select(User = User_Nick,Img),by = c('User.x'='Img')) %>%
+    left_join(User_ID %>% 
+                select(User = User_Nick,Img),by = c('User.y'='Img')) %>% 
+    select(User_x = User.x.x, Agg.Pts.x, Game,User_y = User.y.y,Agg.Pts.y) %>% 
+    inner_join(user_results_validation %>% select(User=User_Nick,Game=NameID,boom,winning_goals),by=c('User_x'='User','Game'='Game')) %>%
+    inner_join(user_results_validation %>% select(User=User_Nick,Game=NameID,boom,winning_goals),by=c('User_y'='User','Game'='Game')) %>%
+    inner_join(game_status,by=c('Game')) %>% group_by(User_x,User_y) %>% 
+    mutate(num = 1:k) %>% 
+    group_by(User_x,Stage) %>% mutate(Agg.Boom.x = cumsum(boom.x),
+                                      Agg.WG.x = cumsum(winning_goals.x)) %>% 
+    group_by(User_y,Stage) %>% mutate(Agg.Boom.y = cumsum(boom.x),
+                                      Agg.WG.y = cumsum(winning_goals.x))
+  
+  
+  
+  ###################
+  
+  ## TEST ##
+  {
+    polo_col <-  cup_col_by_user %>% mutate(
+      col_user_x = ifelse(GameID < current_game, 
+                          ifelse(num == k,
+                                 ### If Stage games have been finished & we are in the last row of the knokout - we would like to see G/R/Y
+                                 ifelse(Agg.Pts.x > Agg.Pts.y,cup_palate$winner,
+                                        ifelse(Agg.Pts.x < Agg.Pts.y,cup_palate$loser,
+                                               ifelse(Agg.Boom.x > Agg.Boom.y ,cup_palate$winner,
+                                                      ifelse(Agg.Boom.x < Agg.Boom.y,cup_palate$loser,
+                                                             ifelse(Agg.WG.x > Agg.WG.y , cup_palate$winner,
+                                                                    ifelse(Agg.WG.x < Agg.WG.y,cup_palate$loser,cup_palate$draw)))))),
+                                 cup_palate$game_over),
+                          ifelse(GameID == current_game,
+                                 ifelse(Agg.Pts.x > Agg.Pts.y,cup_palate$winner,
+                                        ifelse(Agg.Pts.x < Agg.Pts.y,cup_palate$loser,
+                                               ifelse(Agg.Boom.x > Agg.Boom.y ,cup_palate$winner,
+                                                      ifelse(Agg.Boom.x < Agg.Boom.y,cup_palate$loser,
+                                                             ifelse(Agg.WG.x > Agg.WG.y , cup_palate$winner,
+                                                                    ifelse(Agg.WG.x < Agg.WG.y,cup_palate$loser,cup_palate$draw)))))),
+                                 cup_palate$future_game))) %>%
+      
+      select(User_x,User_y,Stage,col_user_x,Game) %>% mutate(col_user_y = ifelse(col_user_x == cup_palate$loser,
+                                                                                 cup_palate$winner,
+                                                                                 ifelse(col_user_x == cup_palate$winner,cup_palate$loser,col_user_x)))
+  }
+  ##
+  
+  
+  
+  
+  ###################
+  
+  the_data_img_con_Final <- the_data_img_con %>% left_join(User_ID %>% 
+                                                             select(User = User_Nick,Img),by = c('User.x'='Img')) %>%
+    left_join(User_ID %>% 
+                select(User = User_Nick,Img),by = c('User.y'='Img'))
+  
+  cup_col <- the_data_img_con_Final %>% left_join(polo_col %>% select(User_x,Game,col_user_x),
+                                                  by = c('Game','User.x.x'='User_x')) %>% left_join(polo_col %>% select(User_y,Game,col_user_y),
+                                                                                                    by = c('Game','User.y.y'='User_y')) 
+  
+  
+  
+  final_cup_table <- cup_col %>% select(-c(Stage,Stage.y,User_y,User.y.y,User.x.x)) %>% 
+    select(`User I` = User.x,
+           `Bet I` = Bet.x,
+           `Pts I`=  Pts.x,
+           `Agg.Pts I` = Agg.Pts.x,
+           Game,
+           Result,
+           Stage = Stage.x,
+           `User II` = User.y,
+           `Bet II` = Bet.y,
+           `Pts II`=  Pts.y,
+           `Agg.Pts II` = Agg.Pts.y,
+           col_user_x,col_user_y,Rank)
+  
+  return(final_cup_table)
+  
+}
+
+
+
+###################################### SERVER ########################################
+
 server <- function(input, output, session) {
 
 
@@ -688,7 +803,7 @@ searching = FALSE,
                                                                         list(className = 'dt-center', targets = "_all")),
                                  scrollX=TRUE,
                                  scrollCollapse=TRUE,
-                                 pageLength = 30, lengthMenu = c(10,20,N_users)), 
+                 lengthMenu = c(10,20,N_users)), 
                   rownames = FALSE,
                   escape = FALSE,
                   class = 'cell-border stripe') %>% 
@@ -1115,27 +1230,22 @@ DT::  datatable(data = user_predictions,
                 escape = FALSE,
                 class = 'cell-border stripe',
                 options = list( searching = FALSE,
+                                                     lengthChange=FALSE,
+                                                    autoWidth = TRUE,
           columnDefs = list(list(width = "10px", targets =  "_all" ),
                                                  list(className = 'dt-center', targets = "_all"))))     %>% 
   formatStyle("User",
               target = 'row',
-              color =    "#00384A" )     
+              color =    "#00384A" )     %>% 
+  formatStyle("User",
+              target = 'row',
+              backgroundColor =    "#FEF9E7" )     %>%
+      formatStyle('User',
+                  target = 'row',
+                  fontWeight ="bold")
+
     
   })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
   
@@ -1150,6 +1260,251 @@ DT::  datatable(data = user_predictions,
 
 
 
+output$cup_table <- renderDataTable({
+
+autoInvalidate()
+
+all_df_list$fixtures$df <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX",
+                                                   "-1vQ4jRITA24Oj_h-i4cVxEGstFTS7-qKH0bv_pp61h-Jj4G",
+                                                   "0t-fLh6TUiZU-Qor1WA2pt50TJkENnCkh/pub?gid=0&single=true&output=csv")),
+                                        stringsAsFactors = FALSE)
+
+
+fixtures <- all_df_list$fixtures$df
+
+    # resultes_edited - crucial data join between user's predictions & real results
+    {
+      # Results edited join between the fixtures and the user results (Group Stage), for each user, in each game 
+      
+      resultes_edited <- all_df_list$resultes$df %>%
+        melt(id = c("User Name","Submission ID")) %>%
+        separate(variable,c("user_Home","user_Away")," - ") %>%
+        separate(value,c("user_Home_Goals","user_Away_Goals"),"-") %>%
+        mutate(user_Direction = ifelse(`user_Home_Goals`>`user_Away_Goals`,"Home",
+                                       ifelse(`user_Home_Goals`==`user_Away_Goals`,"Draw",
+                                              "Away")),
+               NameID = paste0(user_Home," - ",user_Away)) %>% 
+        inner_join(all_df_list$fixtures$df,
+                   by = c("NameID")) %>% left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
+      
+      # Results knokout edited join between the fixtures and the user results (knokout), for each user, in each game 
+      
+      resultes_knokout_edited = resultes_knokout %>% 
+        gather(variable, value, -c(User.Name,Submission.ID)) %>% 
+        select(`User Name` = User.Name,
+               `Submission ID` = Submission.ID,variable,value) %>% 
+        filter(!(value %in% c('NA',"") | is.na(value) ) ) %>% 
+        mutate(Game = substr(variable,1,regexpr("_",variable)+1) ) %>% 
+        group_by(`User Name`,`Submission ID`,Game) %>% 
+        summarise(variable = paste0(value,collapse = ";")) %>% 
+        separate(variable,c("variable","user_Direction_pre"),";") %>% 
+        inner_join(knokout_col_adj,by = c('Game'='resultes_knokout_name')) %>%
+        separate(original_fixture_name,c("user_Home","user_Away")," - ") %>% 
+        separate(variable,c("user_Home_Goals","user_Away_Goals"),"-") %>% 
+        mutate(NameID = paste0(user_Home," - ",user_Away)) %>% 
+        mutate(user_dir_validation = ifelse(`user_Home_Goals`>`user_Away_Goals`,"Home",
+                                            ifelse(`user_Home_Goals`==`user_Away_Goals`,"Draw",
+                                                   "Away")),
+               user_Direction = ifelse(user_dir_validation == 'Draw',user_Direction_pre,user_dir_validation)) %>%
+        select(`User Name`,`Submission ID`,user_Home,user_Away,user_Home_Goals,user_Away_Goals,user_Direction,NameID) %>%
+        inner_join(all_df_list$fixtures$df,by = c("NameID")) %>% 
+        left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
+      
+      # Creating one version of truth - comparing between user predictions to real results and connect the Group Stage & Knokout bulks
+      
+      resultes_edited <- bind_rows(resultes_edited,resultes_knokout_edited)
+      
+      # adding Points vector with the user's points for each user in each match
+      
+      # Empty vector
+      user_game_points <- rep(NA,nrow(resultes_edited))
+      
+      # apply worldcup points function for each row in the results edited
+      for(i in 1:nrow(resultes_edited)){
+        user_game_points[i] <- worldcup_points(resultes_edited[i,])}
+      
+      user_results_validation <- resultes_edited %>% mutate(user_game_points,
+                                                            boom = ifelse(user_game_points>1,TRUE,FALSE),
+                                                            winning_goals = ifelse(boom == TRUE,as.numeric(user_Home_Goals)+
+                                                                                     as.numeric(true_Away_Goals),0))
+      
+    }
+    
+    # 'Current' Parameters - current game, current game name, current cup rank, etc
+    {
+      ### Very Importent - If there is an active game will indicate on him, else - will indicate on the next comming game ### 
+      
+      current_game <- ifelse(all(resultes_edited$active == FALSE),
+                             max(resultes_edited$GameID[which(resultes_edited$started==TRUE)])+1,
+                             resultes_edited$GameID[which(resultes_edited$active == TRUE)[1]])
+      
+      current_Game_Name <- (resultes_edited %>% filter(GameID == current_game) %>% select(NameID))[1,1]
+      
+      current_cup_rank <-   fixtures$Cup_Rank[which(fixtures$GameID == current_game)]
+    }
+  
+    ##### Cup Data Preperation ####
+    {
+      current_cup_stage <- fixtures$Cup_ID[which(fixtures$GameID == current_game)]  
+      
+      # Aggrgate points for each user in each cup stage
+      cup_points <- user_results_validation %>% 
+        select(User = `User_Nick`,
+               GameID,
+               CupID=Cup_ID,
+               Points = user_game_points,
+               Boom=boom,
+               `Winning Goals` = winning_goals) %>% 
+        mutate(CUPID = substr(CupID,1,1)) %>% 
+        filter(CUPID != '0') %>%  mutate(User_Cup_ID = paste0(User,"_",CUPID)) %>% 
+        left_join(resultes_edited %>% select(User=`User_Nick`,GameID,NameID,true_Home_Goals,true_Away_Goals,
+                                             Home = user_Home_Goals,
+                                             Away = user_Away_Goals),by=c('User','GameID')) %>% 
+        mutate(Bet = paste0(Home,"-",Away),
+               Result = paste0(true_Home_Goals,"-",true_Away_Goals)) %>% select(-c(true_Home_Goals,true_Away_Goals,Home,Away))
+      
+      
+      ## Cup Data preperation - Round of 32
+      {
+        data_cup <- cup_points  %>% left_join(User_ID %>%  select(User = User_Nick,Draw_32)) %>% 
+          arrange(Draw_32,User) %>% filter(GameID < 53) 
+        
+        
+        vec <- c(rep(c(rep(TRUE,4),rep(FALSE,4)),4*32/8))
+        
+        data_cup_a <- data_cup[which(vec==TRUE),] %>% select(-c(CupID,User_Cup_ID)) %>% select(User,Bet,Points,Boom,WG=`Winning Goals`,GameID,CupID = CUPID,Draw_32,Game=NameID,Result)
+        data_cup_b <- data_cup[which(vec==FALSE),]%>% select(-c(CupID,User_Cup_ID)) %>% select(User,Bet,Points,Boom,WG=`Winning Goals`,GameID,CupID = CUPID,Draw_32,Game=NameID,Result)
+        
+        
+        the_data <- data_cup_a %>% 
+          inner_join(data_cup_b,by=c('GameID','CupID','Game','Result','Draw_32')) %>% arrange(User.x,GameID) %>% 
+          select(-c(GameID,CupID,Draw_32)) 
+        
+               }
+      ## Cup Data preperation - Round of 16
+      {
+        user_phase_16 <- User_ID %>% filter(Draw_16 != 0) %>% select(User_Nick)
+        
+        data_cup_16 <- cup_points %>% filter(User %in% user_phase_16$User_Nick) %>% left_join(User_ID %>% select(User = User_Nick,Draw_16)) %>% 
+          arrange(Draw_16,User) %>% filter(GameID >= 53 & GameID < 57)
+        
+        vec_16 <- c(rep(c(rep(TRUE,4),rep(FALSE,4)),4*16/8))
+        
+        data_cup_a_16 <- data_cup_16[which(vec_16==TRUE),] %>% select(-c(CupID,User_Cup_ID)) %>% select(User,Bet,Points,Boom,WG=`Winning Goals`,GameID,CupID = CUPID,Draw_16,Game=NameID,Result)
+        data_cup_b_16 <- data_cup_16[which(vec_16==FALSE),]%>% select(-c(CupID,User_Cup_ID)) %>% select(User,Bet,Points,Boom,WG=`Winning Goals`,GameID,CupID = CUPID,Draw_16,Game=NameID,Result)
+        
+        
+        the_data_16 <- data_cup_a_16 %>% 
+          inner_join(data_cup_b_16,by=c('GameID','CupID','Game','Result','Draw_16')) %>% arrange(User.x,GameID) %>% 
+          select(-c(GameID,CupID,Draw_16))
+      }
+      ## Cup Data preperation - Quarter Finals
+      {
+        user_phase_8 <- User_ID %>% filter(Draw_8 != 0) %>% select(User_Nick)
+        
+        data_cup_8 <- cup_points %>% filter(User %in% user_phase_8$User_Nick) %>% left_join(User_ID %>% select(User = User_Nick,Draw_8)) %>% 
+          arrange(Draw_8,User) %>% filter(GameID >= 57 & GameID < 61)
+        
+        vec_8 <- c(rep(c(rep(TRUE,4),rep(FALSE,4)),4*8/8))
+        
+        data_cup_a_8 <- data_cup_8[which(vec_8==TRUE),] %>% select(-c(CupID,User_Cup_ID)) %>% select(User,Bet,Points,Boom,WG=`Winning Goals`,GameID,CupID = CUPID,Draw_8,Game=NameID,Result)
+        data_cup_b_8 <- data_cup_8[which(vec_8==FALSE),]%>% select(-c(CupID,User_Cup_ID)) %>% select(User,Bet,Points,Boom,WG=`Winning Goals`,GameID,CupID = CUPID,Draw_8,Game=NameID,Result)
+        
+        
+        the_data_8 <- data_cup_a_8 %>% 
+          inner_join(data_cup_b_8,by=c('GameID','CupID','Game','Result','Draw_8')) %>% arrange(User.x,GameID) %>% 
+          select(-c(GameID,CupID,Draw_8))
+        
+        
+      }
+      ## Cup Data preperation - Semi Finals
+      {
+        user_phase_4 <- User_ID %>% filter(Draw_4 != 0) %>% select(User_Nick)
+        
+        data_cup_4 <- cup_points %>% filter(User %in% user_phase_4$User_Nick) %>% left_join(User_ID %>% select(User = User_Nick,Draw_4)) %>% 
+          arrange(Draw_4,User) %>% filter(GameID >= 61 & GameID < 63)
+        
+        vec_4 <- c(rep(c(rep(TRUE,2),rep(FALSE,2)),2*4/4))
+        
+        data_cup_a_4 <- data_cup_4[which(vec_4==TRUE),] %>% select(-c(CupID,User_Cup_ID)) %>% select(User,Bet,Points,Boom,WG=`Winning Goals`,GameID,CupID = CUPID,Draw_4,Game=NameID,Result)
+        data_cup_b_4 <- data_cup_4[which(vec_4==FALSE),]%>% select(-c(CupID,User_Cup_ID)) %>% select(User,Bet,Points,Boom,WG=`Winning Goals`,GameID,CupID = CUPID,Draw_4,Game=NameID,Result)
+        
+        
+        the_data_4 <- data_cup_a_4 %>% 
+          inner_join(data_cup_b_4,by=c('GameID','CupID','Game','Result','Draw_4')) %>% arrange(User.x,GameID) %>%  
+          select(-c(GameID,CupID,Draw_4))
+        
+      }
+      ## Cup Data preperation - Finals
+      {
+        user_phase_2 <- User_ID %>% filter(Draw_2 != 0) %>% select(User_Nick)
+        
+        data_cup_2 <- cup_points %>% filter(User %in% user_phase_2$User_Nick) %>% left_join(User_ID %>% select(User = User_Nick,Draw_2)) %>% 
+          arrange(Draw_2,User) %>% filter(GameID >= 63 & GameID <= 64)
+        
+        vec_2 <- c(rep(TRUE,2),rep(FALSE,2))
+        
+        data_cup_a_2 <- data_cup_2[which(vec_2==TRUE),] %>% select(-c(CupID,User_Cup_ID)) %>% select(User,Bet,Points,Boom,WG=`Winning Goals`,GameID,CupID = CUPID,Draw_2,Game=NameID,Result)
+        data_cup_b_2 <- data_cup_2[which(vec_2==FALSE),]%>% select(-c(CupID,User_Cup_ID)) %>% select(User,Bet,Points,Boom,WG=`Winning Goals`,GameID,CupID = CUPID,Draw_2,Game=NameID,Result)
+        
+        
+        the_data_2 <- data_cup_a_2 %>% 
+          inner_join(data_cup_b_2,by=c('GameID','CupID','Game','Result','Draw_2')) %>% arrange(User.x,GameID) %>%
+          select(-c(GameID,CupID,Draw_2))
+      }
+      
+      
+      current_cup_rank <- fixtures$Cup_Rank[which(fixtures$GameID == current_game)]
+      
+  
+      
+      
+      ready_32 <- cup_gen(the_data,64,4)
+      ready_16 <- cup_gen(the_data_16,32,4)
+      ready_8 <- cup_gen(the_data_8,16,4)
+      ready_4 <- cup_gen(the_data_4,4,2)
+      ready_2 <- cup_gen(the_data_2,2,2)
+      ready_data_cup <- bind_rows(ready_32,ready_16,ready_8,ready_4,ready_2) 
+      
+      relevant_cup_stages <- as.character(unique(fixtures[1:current_game,]$Cup_Stage))
+      
+      ready_data_cup <- ready_data_cup %>% filter(Stage %in% relevant_cup_stages) %>% 
+        select(`User I`,`Bet I`,`Pts I`,`Agg.Pts I`,Game,Result,`Agg.Pts II`,`Pts II`,`Bet II`,`User II`,`Stage`,col_user_x,col_user_y,Rank )  
+      
+      
+      
+    }
+
+
+    DT::datatable(ready_data_cup,
+                  options =  list(pageLength = nrow(ready_data_cup),
+                                  columnDefs = list(list(width = 200, targets =  "_all" ),
+                                                    list(visible=FALSE, targets=c(11,12,13)),
+                                                 list(className = 'dt-center', targets = "_all")),
+                                  scrollX=TRUE,
+                                  scrollCollapse=TRUE,
+                                  lengthMenu = c(32,64,128)), 
+                  rownames = FALSE,
+                  escape = FALSE)  %>% 
+      formatStyle(c('User I','Agg.Pts I','Pts I','Bet I'),'col_user_x',
+                  backgroundColor = styleEqual(as.vector(unlist(cup_palate)),
+                                               as.vector(unlist(cup_palate)))) %>%
+      formatStyle(c('User II','Agg.Pts II','Pts II','Bet II'),'col_user_y',
+                  backgroundColor = styleEqual(as.vector(unlist(cup_palate)),
+                                               as.vector(unlist(cup_palate)))) %>%
+      formatStyle('Rank',
+                  target = 'row',
+                  color=styleEqual(c(0,1),c("#BA4A00","#F1C40F")),
+                  backgroundColor ="#2B3E50")
+
+
+
+
+
+}) # End of utput$cup_table
+
+
+
 
   
-}
+} # End of Server Function
