@@ -115,23 +115,20 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                     
                     HTML('<img src="https://fsprdcdnpublic.azureedge.net/global-pictures/tournaments-sq-4/254645_w" height="95" width="130" align="middle">'),
                     HTML('<img src="http://farm2.staticflickr.com/1745/41637992304_5a17b268a9_b.jpg" height="95" width="170" align="middle">'),
-                    
+
+              HTML("<br> <br>"),
+
+               selectInput(inputId = "userID",
+                                label =  "User:",
+                                choices  = choices$userID,
+                                selected = choices$userID[sample(31,1)],
+                                multiple = TRUE),     
                     selectInput(inputId = "nameID",
                                 label =  "Game :",
                                 choices  = choices$nameID,
                                 selected = current_Game_Name,
-                                multiple = FALSE),
-                    selectInput(inputId = "userID",
-                                label =  "User:",
-                                choices  = choices$userID,
-                                selected = choices$userID[sample(31,1)],
-                                multiple = TRUE),
-                    selectInput(inputId = "cup_round",
-                                label =  "Cup Round:",
-                                choices  = choices$Cup,
-                                selected = choices$Cup[1],
-                                multiple = TRUE)
-                    
+                                multiple = FALSE)
+                   
                   ),
                   
                   # Main panel for displaying outputs ----
