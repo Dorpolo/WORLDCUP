@@ -155,7 +155,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                          DT::dataTableOutput(outputId = "cup_table")       
                                 ),
                                 
-                                tabPanel(title = "User Guesses",
+                                tabPanel(title = "User Predictions",
                                          h4("All User Guesses"),
                                          DT::dataTableOutput(outputId = "user_guess"),
                                          br(),
