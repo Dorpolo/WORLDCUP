@@ -151,7 +151,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                          htmlOutput("title"),
                                          DT::dataTableOutput(outputId = "result_table")),
                                 tabPanel(title =  'CUP',
-                                         h2("CUP Zone"),
+                                         h3("The FZ Cup"),
                                          DT::dataTableOutput(outputId = "cup_table")       
                                 ),
                                 
