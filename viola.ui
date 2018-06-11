@@ -1,0 +1,172 @@
+#
+# This is the user-interface definition of a Shiny web application. You can
+# run the application by clicking 'Run App' above.
+#
+# Find out more about building applications with Shiny here:
+# 
+#    http://shiny.rstudio.com/
+#
+
+##### WorldCup Friends Zone - Shiny App #####
+
+#Required Packages
+{
+  library(shiny)
+  library(ggplot2)
+  library(reshape2)
+  library(plyr)
+  library(dplyr)
+  library(tidyr)
+  library(shinythemes)
+  library(DT)
+  library(scales)
+  library(visNetwork)
+}
+
+### Loading Data Sets from Google Sheets
+{
+  
+  # All Paricipants
+  User_ID <- read.csv(url(paste0('https://docs.google.com/spreadsheets/d/e/2PACX-1vQL0gZ2mopclMeHu-ARwd51v5KXss8CDz1VUrHN5fj3T7xbV-1dSsoz8',
+                                               'VubHVHapK6RjYUHGq9LjXFS/pub?gid=0&single=true&output=csv')),
+                           stringsAsFactors = FALSE)
+
+
+  # All Games Fixtures + Resultes
+  fixtures <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX",
+                                  "-1vQ4jRITA24Oj_h-i4cVxEGstFTS7-qKH0bv_pp61h-Jj4G",
+                                  "0t-fLh6TUiZU-Qor1WA2pt50TJkENnCkh/pub?gid=0&single=true&output=csv")),
+                       stringsAsFactors = FALSE)
+  
+  # Users' score predictions - Group Stage
+  resultes <- read.csv(url(  
+    paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vQal_rn7C0AOiFL3l7wXt_57zpTCV8_",
+           "1nXeFywKNdMI9ZfNXm9DonPVea20ymcE8aSzXvcETyxlIhu",
+           "0/pub?gid=0&single=true&output=csv")),
+                       stringsAsFactors = FALSE)
+
+  
+  # Adjestment
+  
+  resultes  <- resultes  %>% select(-c(Winner,Top_Scorer))
+  
+  resultes <- resultes %>% left_join(User_ID %>% select(Full.Name,User_Nick),by = c('User.Name'='Full.Name'))
+  
+  # Users' score predictions - Knockout Stage
+  resultes_knokout <- as.data.frame(read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vSQhJq_NwSlny",
+                                                        "HcbHZE179aZSKZhEeW9U3PK3U835NU8TvVko2_5v7Sx1h14hv0auB1DgYWXINg",
+                                                        "fPr-/pub?gid=0&single=true&output=csv"))),stringsAsFactors = FALSE)
+  
+  
+  # Help table - Adjestment for the resultes_knokout
+  
+  knokout_col_adj <- fixtures %>% filter(Stage != "Group Stage") %>% 
+    select(GameID,
+           original_fixture_name = NameID)  %>% 
+    mutate(resultes_knokout_name = (names(resultes_knokout)[-c(1,2)])[seq(1,32,by=2)])
+  
+  
+  # List which holds all DFs
+  
+  all_df_list <- list(userID =   list(df = User_ID),
+                      resultes = list(df = resultes),
+                      fixtures = list(df = fixtures))
+  
+  # Final adjustments due to the read.csv which makes some problems...
+  names(all_df_list$resultes$df) <- gsub("..."," - ",names(all_df_list$resultes$df),fixed = TRUE)
+  names(all_df_list$resultes$df) <- gsub("."," ",names(all_df_list$resultes$df),fixed = TRUE)
+  names(all_df_list$userID$df) <- gsub("."," ",names(all_df_list$userID$df),fixed = TRUE)
+  
+  
+  # and we are all set for data manipulation
+}
+
+
+# all UI filter selection options
+{
+  choices <- list(
+    nameID = unique(fixtures$NameID),
+    userID = c('Select All',sort(User_ID$`User_Nick`)),
+    Active =  unique(sort(fixtures$Active_Included)),
+    Cup = unique((fixtures %>% filter(Cup_Stage != "None"))$Cup_Stage)
+  )
+}
+
+# Extracting competition parameters 
+{
+  N_users <- nrow(User_ID)
+  N_games_complited = sum(fixtures$started == TRUE & fixtures$active == FALSE)
+  N_games = sum(fixtures$started == TRUE)
+  
+  current_game <- ifelse(all(fixtures$active == FALSE),
+                         max(fixtures$GameID[which(fixtures$started==TRUE)])+1,
+                         fixtures$GameID[which(fixtures$active == TRUE)[1]])
+  
+  current_Game_Name <- (fixtures %>% filter(GameID == current_game) %>% select(NameID))[1,1]
+  
+  current_cup_rank <-   fixtures$Cup_Rank[which(fixtures$GameID == current_game)]
+  
+}
+
+
+
+ui <- fluidPage(theme = shinytheme("slate"),
+                
+                # App title ----
+                titlePanel("Viola Cup Friends Zone"),
+                
+                # Sidebar layout with input and output definitions ----
+                sidebarLayout(
+                  
+                  # Sidebar panel for inputs ----
+                  sidebarPanel(
+                    
+                    HTML('<img src="https://fsprdcdnpublic.azureedge.net/global-pictures/tournaments-sq-4/254645_w" height="95" width="130" align="middle">'),
+                    HTML('<img src="data:image/png;base64,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" height="95" width="170" align="middle">'),
+                    
+                    HTML("<br> <br>"),
+                    
+                    selectInput(inputId = "userID",
+                                label =  "User:",
+                                choices  = choices$userID,
+                                selected = choices$userID[sample(31,1)],
+                                multiple = TRUE),     
+                    selectInput(inputId = "nameID",
+                                label =  "Game :",
+                                choices  = choices$nameID,
+                                selected = current_Game_Name,
+                                multiple = FALSE)
+                    
+                  ),
+                  
+                  # Main panel for displaying outputs ----
+                  mainPanel(
+                    
+                    
+                    tabsetPanel(type = "tabs",
+                                tabPanel(title = "Viola League Table",
+                                         h4("League Table"),
+                                         DT::dataTableOutput(outputId = "league_table"),
+                                         br(),
+                                         plotOutput(outputId = "lineplot",
+                                                    click = "plot_click")),
+                                tabPanel(title = "Pre Game",
+                                         h4("Pre Game Statistics"),
+                                         htmlOutput("game_name"),
+                                         plotOutput(outputId = "pre_game_I", width = "250px", height = "250px"),
+                                         plotOutput(outputId = "pre_game_II", width = "350px", height = "600px")),
+                                tabPanel(title =  'Live Game',
+                                         htmlOutput("title"),
+                                         DT::dataTableOutput(outputId = "result_table"),
+                                         visNetworkOutput(outputId = "network",height = "500px")),
+                                tabPanel(title = "User Predictions",
+                                         h4("All User Guesses"),
+                                         DT::dataTableOutput(outputId = "user_guess"),
+                                         br(),
+                                         DT::dataTableOutput(outputId = "table.a"))
+                                
+                                
+                    ) 
+                  )
+                )
+)
