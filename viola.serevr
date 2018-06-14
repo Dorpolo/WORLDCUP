@@ -58,7 +58,7 @@
     if(x$started %in% c("TRUE"))
     {
       user <- c(x$user_Home_Goals,x$user_Away_Goals,x$user_Direction)
-      true <- c(x$true_Home_Goals,x$true_Away_Goals,x$true_Direction)
+      true <- c(x$true_Away_Goals,x$true_Away_Goals,x$true_Direction)
       if(x$Stage == "Group Stage")
       {
         return(ifelse(sum(user == true) == 3,3,ifelse(user[3] == true[3],1,0)))
@@ -169,7 +169,7 @@
 {
   choices <- list(
     nameID = unique(fixtures$NameID),
-    userID = c('Select All',levels(sort(User_ID$`User_Nick`))),
+    userID = c('Select All',sort(User_ID$`User_Nick`)),
     Active =  unique(sort(fixtures$Active_Included)),
     Cup = unique((fixtures %>% filter(Cup_Stage != "None"))$Cup_Stage)
   )
@@ -242,7 +242,7 @@
 
 # User's league table #asItStands 
 {
-  league_standings <- user_results_validation %>% filter(Active_Included == "Complited Games") %>% 
+  league_standings <- user_results_validation %>% filter((Active_Included == "Complited Games" | Active_Included == 'Active Games')) %>% 
     group_by(`User_Nick`) %>% 
     summarise(Points = sum(user_game_points),
               Boom = sum(boom),
@@ -266,6 +266,8 @@ date.id <- fixtures %>% select(Date,GameID) %>% arrange(GameID) %>%
   user_results_validation$true_Home_Goals <- as.numeric(user_results_validation$true_Home_Goals)
   user_results_validation$true_Away_Goals <- as.numeric(user_results_validation$true_Away_Goals)
   }
+
+
 
 # World Cup Teams Points Calculations (For the tab called "Users Prediction")
 {
@@ -332,12 +334,12 @@ date.id <- fixtures %>% select(Date,GameID) %>% arrange(GameID) %>%
   # Empty array for user ranks by competition day
   
   rank <- array(data = NA ,dim = c(N_users,current_competition_day),
-                dimnames = list(resultes$User_Nick,1:current_competition_day))
+                dimnames = list(unique(resultes$User_Nick),1:current_competition_day))
   
   
   for(i in 1:current_competition_day)
   {
-    league_standings <- user_results_validation_b %>% filter(Active_Included == "Complited Games" & Day.y <= i) %>% 
+    league_standings <- user_results_validation_b %>% filter((Active_Included == "Complited Games" | Active_Included == 'Active Games') & Day.y <= i) %>% 
       group_by(User_Nick) %>% 
       summarise(Points = sum(user_game_points),
                 Boom = sum(boom),
@@ -371,7 +373,7 @@ date.id <- fixtures %>% select(Date,GameID) %>% arrange(GameID) %>%
 # Define server logic required to draw a histogram
 shinyServer(function(input, output) {
   
-  autoInvalidate <- reactiveTimer(200000)
+  autoInvalidate <- reactiveTimer(150000)
   
   # Genrate Offical User's League
   output$league_table <- DT::renderDataTable({
@@ -384,7 +386,7 @@ shinyServer(function(input, output) {
                                     "0t-fLh6TUiZU-Qor1WA2pt50TJkENnCkh/pub?gid=0&single=true&output=csv")),
                          stringsAsFactors = FALSE)
     
-    all_df_list$userID$fixtures <- fixtures
+    all_df_list$fixtures$df <- fixtures    
     
     # resultes_edited - data join between user's predictions & real results
     {
@@ -430,11 +432,32 @@ shinyServer(function(input, output) {
       
       resultes_edited$user_Away_Goals <-   as.numeric(resultes_edited$user_Away_Goals)
       resultes_edited$user_Home_Goals <-   as.numeric(resultes_edited$user_Home_Goals)
-      resultes_edited$true_Direction <- as.character(resultes_edited$user_Direction)
+      resultes_edited$true_Direction <- as.character(resultes_edited$true_Direction)
       # adding Points vector with the user's points for each user in each match
       
       # Empty vector
       user_game_points <- rep(NA,nrow(resultes_edited))
+      
+      
+      worldcup_points <- function(x)
+      {
+        if(x$started %in% c("TRUE"))
+        {
+          user <- c(x$user_Home_Goals,x$user_Away_Goals,x$user_Direction)
+          true <- c(x$true_Away_Goals,x$true_Home_Goals,x$true_Direction)
+          if(x$Stage == "Group Stage")
+          {
+            return(ifelse(sum(user == true) == 3,3,ifelse(user[3] == true[3],1,0)))
+          }else{
+            return(ifelse(sum(user == true) == 3 ,
+                          4,
+                          ifelse(user[3] == true[3] | (user[1:2] == true[1:2] & user[3] != true[3]),
+                                 1,
+                                 0)))
+          }
+        }else{return(0)}
+      }
+      
       
       # apply worldcup points function for each row in the results edited
       for(i in 1:nrow(resultes_edited)){
@@ -466,12 +489,15 @@ shinyServer(function(input, output) {
     # Will serve us in the main user league output
     only_rank_for_vlookup <- league_standings %>% select(User_Nick,Rank)
     
+    
     DT::datatable(data = user_results_validation %>% 
                     group_by(`User_Nick`) %>% 
                     summarise(Points = sum(user_game_points),
                               Boom = sum(boom),
                               WG = sum(winning_goals),
-                              Pct = percent(sum(user_game_points)/(4*sum(Active_Included=="Complited Games")-sum(Active_Included=="Complited Games"&Stage=="Group Stage"))),
+                              Pct = ifelse(as.numeric(Sys.time()) < 1528920303 + 54000,
+                                           percent(0),
+                                           percent(sum(user_game_points)/(4*sum((Active_Included=="Complited Games" | Active_Included=="Active Games"))-sum((Active_Included=="Complited Games" | Active_Included=="Active Games") & Stage=="Group Stage")))),
                               Games = sum(started == TRUE)) %>% 
                     arrange(desc(Points),
                             desc(Boom),
@@ -620,11 +646,11 @@ shinyServer(function(input, output) {
       theme(
         plot.margin = unit(c(0,0,0,0), "mm"),
         panel.grid.major = element_blank(),
-        plot.background = element_rect(fill = "#2b3e50", colour = "#2b3e50"),
+        plot.background = element_rect(fill = "#272B30", colour = "#272B30"),
         plot.title = element_text(hjust = 0.5, size = 50),
         plot.subtitle = element_text(hjust = 0.5),
         panel.grid.minor = element_blank(),
-        panel.background = element_rect(fill = "#2b3e50", colour = "#2b3e50"),
+        panel.background = element_rect(fill = "#272B30", colour = "#272B30"),
         axis.text.y = element_blank(),
         axis.ticks.x = element_blank(),
         axis.ticks.y = element_blank(),
@@ -680,6 +706,7 @@ shinyServer(function(input, output) {
   #### Viz output II
   
   output$pre_game_II <- renderPlot({
+    
     par(bg = "#2b3e50")
     ggplot(next_game_scores(), aes(y = proportion, x = bet_score, fill = count)) +
       geom_col(position = "dodge") +
@@ -691,11 +718,11 @@ shinyServer(function(input, output) {
       theme(
         plot.margin = unit(c(0,0,0,0), "mm"),
         panel.grid.major = element_blank(),
-        plot.background = element_rect(fill = "#2b3e50", colour = "#2b3e50"),
+        plot.background = element_rect(fill = "#272B30", colour = "#272B30"),
         plot.title = element_text(hjust = 0.5, size = 20, color = "white"),
         plot.subtitle = element_text(hjust = 0.5),
         panel.grid.minor = element_blank(),
-        panel.background = element_rect(fill = "#2b3e50", colour = "#2b3e50"),
+        panel.background = element_rect(fill = "#272B30", colour = "#272B30"),
         axis.text.x = element_blank(),
         axis.text.y = element_text(size = 16, color = "white"),
         axis.ticks.x = element_blank(),
@@ -778,7 +805,7 @@ shinyServer(function(input, output) {
       
       resultes_edited$user_Away_Goals <-   as.numeric(resultes_edited$user_Away_Goals)
       resultes_edited$user_Home_Goals <-   as.numeric(resultes_edited$user_Home_Goals)
-      resultes_edited$true_Direction <- as.character(resultes_edited$user_Direction)
+      resultes_edited$true_Direction <- as.character(resultes_edited$true_Direction)
       # adding Points vector with the user's points for each user in each match
       
       # Empty vector
