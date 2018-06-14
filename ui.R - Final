@@ -1,4 +1,13 @@
 
+# This is the user-interface definition of a Shiny web application. You can
+# run the application by clicking 'Run App' above.
+#
+# Find out more about building applications with Shiny here:
+# 
+#    http://shiny.rstudio.com/
+#
+
+
 
 ##### WorldCup Friends Zone - Shiny App #####
 
@@ -32,10 +41,11 @@
                        stringsAsFactors = FALSE)
   
   # Users' score predictions - Group Stage
-  resultes <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vSK-IscOIj9PGmqR1L9gE3WvZyB_",
-                                  "bg7YUZrH128RQkURYoRY0RvCxRv_cTAEZCzRqc_0Pv2cgUJ1EiX/",
-                                  "pub?gid=0&single=true&output=csv")),
-                       stringsAsFactors = FALSE)
+  
+  resultes <-   read.csv(url(paste0('https://docs.google.com/spreadsheets/d/e/2',
+                                    'PACX-1vTQKuVDYTvMW9nB24QGAQ0M5l8xgeUGYbCjGTX3dxeQ1j',
+                                    'aklYy-989osaccZgcwVelbzpxq4nZEtPxw/pub?gid=0&single=true&output=csv')),
+                         stringsAsFactors = FALSE)
   
   
   
@@ -89,20 +99,20 @@
   N_users <- nrow(User_ID)
   N_games_complited = sum(fixtures$started == TRUE & fixtures$active == FALSE)
   N_games = sum(fixtures$started == TRUE)
-
-current_game <- ifelse(all(fixtures$active == FALSE),
-                       max(fixtures$GameID[which(fixtures$started==TRUE)])+1,
-                       fixtures$GameID[which(fixtures$active == TRUE)[1]])
-
-current_Game_Name <- (fixtures %>% filter(GameID == current_game) %>% select(NameID))[1,1]
-
-current_cup_rank <-   fixtures$Cup_Rank[which(fixtures$GameID == current_game)]
-
+  
+  current_game <- ifelse(all(fixtures$active == FALSE),
+                         max(fixtures$GameID[which(fixtures$started==TRUE)])+1,
+                         fixtures$GameID[which(fixtures$active == TRUE)[1]])
+  
+  current_Game_Name <- (fixtures %>% filter(GameID == current_game) %>% select(NameID))[1,1]
+  
+  current_cup_rank <-   fixtures$Cup_Rank[which(fixtures$GameID == current_game)]
+  
 }
 
 
 
-ui <- fluidPage(theme = shinytheme("superhero"),
+ui <- fluidPage(theme = shinytheme("slate"),
                 
                 # App title ----
                 titlePanel("World Cup Friends Zone"),
@@ -115,10 +125,10 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                     
                     HTML('<img src="https://fsprdcdnpublic.azureedge.net/global-pictures/tournaments-sq-4/254645_w" height="95" width="130" align="middle">'),
                     HTML('<img src="http://farm2.staticflickr.com/1745/41637992304_5a17b268a9_b.jpg" height="95" width="170" align="middle">'),
-
-              HTML("<br> <br>"),
-
-               selectInput(inputId = "userID",
+                    
+                    HTML("<br> <br>"),
+                    
+                    selectInput(inputId = "userID",
                                 label =  "User:",
                                 choices  = choices$userID,
                                 selected = choices$userID[sample(31,1)],
@@ -128,7 +138,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                 choices  = choices$nameID,
                                 selected = current_Game_Name,
                                 multiple = FALSE)
-                   
+                    
                   ),
                   
                   # Main panel for displaying outputs ----
@@ -144,12 +154,13 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                                                     click = "plot_click")),
                                 tabPanel(title = "Pre Game",
                                          h4("Pre Game Statistics"),
-                                          htmlOutput("game_name"),
+                                         htmlOutput("game_name"),
                                          plotOutput(outputId = "pre_game_I", width = "250px", height = "250px"),
                                          plotOutput(outputId = "pre_game_II", width = "350px", height = "600px")),
                                 tabPanel(title =  'Live Game',
                                          htmlOutput("title"),
-                                         DT::dataTableOutput(outputId = "result_table")),
+                                         DT::dataTableOutput(outputId = "result_table"),
+                                         visNetworkOutput(outputId = "network",height = "500px")),
                                 tabPanel(title =  'CUP',
                                          h3("The FZ Cup"),
                                          DT::dataTableOutput(outputId = "cup_table")       
@@ -172,6 +183,7 @@ ui <- fluidPage(theme = shinytheme("superhero"),
                   )
                 )
 )
+
 
 
 
