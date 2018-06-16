@@ -88,7 +88,7 @@
 {
   choices <- list(
     nameID = unique(fixtures$NameID),
-    userID = c('Select All',levels(sort(User_ID$`User_Nick`))),
+    userID = c(levels(sort(User_ID$`User_Nick`))),
     Active =  unique(sort(fixtures$Active_Included)),
     Cup = unique((fixtures %>% filter(Cup_Stage != "None"))$Cup_Stage)
   )
