@@ -1,5 +1,5 @@
-
-
+#Data Preperation
+{
 #Required Packages
 {
   library(shiny)
@@ -173,7 +173,7 @@
 {
   choices <- list(
     nameID = unique(fixtures$NameID),
-    userID = c('Select All',levels(sort(User_ID$`User_Nick`))),
+    userID = c(levels(sort(User_ID$`User_Nick`))),
     Active =  unique(sort(fixtures$Active_Included)),
     Cup = unique((fixtures %>% filter(Cup_Stage != "None"))$Cup_Stage)
   )
@@ -369,7 +369,7 @@ date.id <- fixtures %>% select(Date,GameID) %>% arrange(GameID) %>%
   
   user_rank_by_day$Rank <- as.numeric(user_rank_by_day$Rank)
 }
-
+}
 
 # Define server logic required to draw a histogram
 shinyServer(function(input, output) {
@@ -540,15 +540,6 @@ shinyServer(function(input, output) {
   # Reactive Data frame for the User predictions and the User Rank plot
   polo_3 <- reactive({user_rank_by_day %>% filter(`User` %in% input$userID)})
   
-  # Select all configuration
-  observe({
-    if ("Select All" %in% input$userID) {
-      # choose all the choices _except_ "Select All"
-      selected_choices <- setdiff(choices$userID, "Select All")
-      updateSelectInput(session, 'userID', selected = selected_choices)
-    }
-  })
-  
   output$lineplot <- renderPlot({
     
     ggplot(data = polo_3(), aes(x = Day, y = Rank, group = User)) +
@@ -583,6 +574,7 @@ shinyServer(function(input, output) {
                 mutate(Rank=row_number(),`Won Stage` = ifelse(Rank %in% c(1,2),"Yes","No")) %>%
                 select(Rank,everything()),
               options = list(pageLength = 32,
+                             searching = FALSE,
                              columnDefs = list(list(width = '5%', targets = "_all"),
                                                list(className = 'dt-center', targets = "_all")),
                              list(visible=FALSE, targets=c(1,6)),
@@ -595,22 +587,30 @@ shinyServer(function(input, output) {
                   color = styleEqual(c('Yes','No'),c('green','red'))) 
   })
   
+
+  user_predictions <- user_guesses %>% left_join(fixtures %>% select(GameID,Active_Included),by = c('GameID'))
+  
   # User Guesses Tab II 
-  polo_5 <- reactive({ user_guesses %>%
+  polo_5 <- reactive({ user_predictions %>%
       filter(User %in% input$userID) %>% select(-c(GameID,Hour,Stage))
   })
   
+  
+  
+  
   # User Guesses Tab Output II 
   output$user_guess <- renderDataTable({
-    datatable(data = polo_5(),
+    
+    datatable(data = polo_5() %>% mutate(finished = ifelse(Active_Included=="Complited Games",'Yes','No')) %>% select(-Active_Included),
               options = list(pageLength = 48,
+                             searching = FALSE,
                              columnDefs = list(list(width = '10px', targets = "_all"),
                                                list(className = 'dt-center', targets = "_all"))), 
               rownames = FALSE,
               class = 'cell-border stripe') %>% 
-      formatStyle("Date",
+      formatStyle("finished",
                   target = 'row',
-                  backgroundColor  = 'white',
+                  backgroundColor  = styleEqual(c('Yes','No'),c("#E3D7E5","white")),
                   color = "#00384A") 
     
   })
@@ -1548,26 +1548,85 @@ shinyServer(function(input, output) {
                             c(which(names(fixtures) == 'true_Home_Goals'),
                               which(names(fixtures)== 'true_Away_Goals'))]
     
-    res_dist <- test_game %>% mutate(Home = true_result$true_Home_Goals,
-                                     Away = true_result$true_Away_Goals) %>%
-      separate(names(test_game)[2],into=c('H.Res','A.Res'),sep="-") %>% 
-      mutate(Result = paste0(H.Res,"-",A.Res),
-             dist = abs(as.numeric(Home)-as.numeric(H.Res)) + 
-               abs(as.numeric(Away)-as.numeric(A.Res))) %>% select(User,Result,dist) %>%
-      distinct(Result,dist)
+    #### Special treatment to 0 or 1 remaining results
+    
+    N_test_game <- nrow(test_game)
     
     
-    user_dist <- data.frame(Result = test_game$User,
-                            dist   = 1)
     
-    dist_w = bind_rows(user_dist,res_dist) %>% 
-      mutate(w = ifelse(nchar(Result)==3,ifelse(dist == 0,2,dist^(-1)),3),
-             w2 = ifelse(nchar(Result)==3,10*w,w))
+    if(N_test_game == 1)
+    {
+      res_dist <- test_game %>% mutate(Home = true_result$true_Home_Goals,
+                                       Away = true_result$true_Away_Goals) %>%
+        separate(names(test_game)[2],into=c('H.Res','A.Res'),sep="-") %>% 
+        mutate(Result = paste0(H.Res,"-",A.Res),
+               dist = abs(as.numeric(Home)-as.numeric(H.Res)) + 
+                 abs(as.numeric(Away)-as.numeric(A.Res))) %>% select(User,Result,dist) %>%
+        distinct(Result,dist)
+      
+      
+      user_dist <- data.frame(Result = test_game$User,
+                              dist   = 1)
+      
+      dist_w = bind_rows(user_dist,res_dist) %>% 
+        mutate(w = ifelse(nchar(Result)==3,ifelse(dist == 0,2,dist^(-1)),3),
+               w2 = ifelse(nchar(Result)==3,10*w,w))
+      
+      graph_array <- array(data = NA,dim = c(nrow(test_game),length(unique(test_game[,2]))))
+      
+      dimnames(graph_array)[[1]] <- list(as.character(test_game$User))
+      dimnames(graph_array)[[2]] <- unique(test_game[,2])
+    }else{
+      if(N_test_game == 0)
+      {
+        test_game <- test_game_pre_result
+        
+        res_dist <- test_game %>% mutate(Home = true_result$true_Home_Goals,
+                                         Away = true_result$true_Away_Goals) %>%
+          separate(names(test_game)[2],into=c('H.Res','A.Res'),sep="-") %>% 
+          mutate(Result = paste0(H.Res,"-",A.Res),
+                 dist = abs(as.numeric(Home)-as.numeric(H.Res)) + 
+                   abs(as.numeric(Away)-as.numeric(A.Res))) %>% select(User,Result,dist) %>%
+          distinct(Result,dist)
+        
+        
+        user_dist <- data.frame(Result = test_game$User,
+                                dist   = 1)
+        
+        dist_w = bind_rows(user_dist,res_dist) %>% 
+          mutate(w = ifelse(nchar(Result)==3,ifelse(dist == 0,2,dist^(-1)),3),
+                 w2 = ifelse(nchar(Result)==3,10*w,w))
+        
+        graph_array <- array(data = NA,dim = c(nrow(test_game),length(unique(test_game[,2]))))
+        
+        dimnames(graph_array)[[1]] <- as.character(test_game$User)
+        dimnames(graph_array)[[2]] <- unique(test_game[,2])
+      }else
+      {
+        res_dist <- test_game %>% mutate(Home = true_result$true_Home_Goals,
+                                         Away = true_result$true_Away_Goals) %>%
+          separate(names(test_game)[2],into=c('H.Res','A.Res'),sep="-") %>% 
+          mutate(Result = paste0(H.Res,"-",A.Res),
+                 dist = abs(as.numeric(Home)-as.numeric(H.Res)) + 
+                   abs(as.numeric(Away)-as.numeric(A.Res))) %>% select(User,Result,dist) %>%
+          distinct(Result,dist)
+        
+        
+        user_dist <- data.frame(Result = test_game$User,
+                                dist   = 1)
+        
+        dist_w = bind_rows(user_dist,res_dist) %>% 
+          mutate(w = ifelse(nchar(Result)==3,ifelse(dist == 0,2,dist^(-1)),3),
+                 w2 = ifelse(nchar(Result)==3,10*w,w))
+        
+        graph_array <- array(data = NA,dim = c(nrow(test_game),length(unique(test_game[,2]))))
+        
+        dimnames(graph_array)[[1]] <- as.character(test_game$User)
+        dimnames(graph_array)[[2]] <- unique(test_game[,2])
+        
+      }
+    }
     
-    graph_array <- array(data = NA,dim = c(nrow(test_game),length(unique(test_game[,2]))))
-    
-    dimnames(graph_array)[[1]] <- as.character(test_game$User)
-    dimnames(graph_array)[[2]] <- unique(test_game[,2])
     
     for( i in 1:dim(graph_array)[1])
     {
@@ -1580,6 +1639,7 @@ shinyServer(function(input, output) {
     
     names_1 <- data.frame(nms=dimnames(graph_array)[[1]])
     names_2 <- data.frame(nms=dimnames(graph_array)[[2]])
+    
     N = nrow(names_1) + nrow(names_2)
     nodes <- bind_rows(names_1,names_2) %>% mutate(id = 1:N) %>% select(id,label = nms) %>% 
       left_join(dist_w %>% select(-c(w,dist)),by = c('label'='Result')) %>% 
@@ -1604,3 +1664,8 @@ shinyServer(function(input, output) {
   })
   
 })
+
+
+
+
+
