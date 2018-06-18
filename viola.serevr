@@ -1,4 +1,7 @@
 
+# Pre Server Function
+{
+  
 
 #Required Packages
 {
@@ -12,6 +15,10 @@
   library(DT)
   library(scales)
   library(visNetwork)
+  library(lubridate)
+  library(XML)
+  library(RCurl)
+  library(httr)
 }
 
 #Special 'home made' functions
@@ -119,6 +126,7 @@
                                   "-1vQ4jRITA24Oj_h-i4cVxEGstFTS7-qKH0bv_pp61h-Jj4G",
                                   "0t-fLh6TUiZU-Qor1WA2pt50TJkENnCkh/pub?gid=0&single=true&output=csv")),
                        stringsAsFactors = FALSE)
+  initial_fixtures <- fixtures
   
   # Users' score predictions - Group Stage
   resultes <- read.csv(url(  
@@ -169,7 +177,7 @@
 {
   choices <- list(
     nameID = unique(fixtures$NameID),
-    userID = c('Select All',sort(User_ID$`User_Nick`)),
+    userID = c(sort(User_ID$`User_Nick`)),
     Active =  unique(sort(fixtures$Active_Included)),
     Cup = unique((fixtures %>% filter(Cup_Stage != "None"))$Cup_Stage)
   )
@@ -368,12 +376,12 @@ date.id <- fixtures %>% select(Date,GameID) %>% arrange(GameID) %>%
   user_rank_by_day$Rank <- as.numeric(user_rank_by_day$Rank)
 }
 
-
+}
 
 # Define server logic required to draw a histogram
 shinyServer(function(input, output) {
   
-  autoInvalidate <- reactiveTimer(150000)
+  autoInvalidate <- reactiveTimer(200000)
   
   # Genrate Offical User's League
   output$league_table <- DT::renderDataTable({
@@ -388,6 +396,53 @@ shinyServer(function(input, output) {
     
     all_df_list$fixtures$df <- fixtures    
     
+    ### Fixtures & Score API Joined 
+    {
+      fixtures <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vTNgD6oZivKRepzwPWDc",
+                                      "YMg4tOQQq8B3sJLFdtHHE7p8lYs4lv_C4Wk_B3lkAPx-nZA",
+                                      "4O6DETuEAhxw/pub?gid=0&single=true&output=csv")),
+                           stringsAsFactors = FALSE)
+      
+      partial_fixtures <- fixtures %>% select(-c(started,active,Active_Included,true_Home_Goals,true_Away_Goals,true_Direction))
+      
+      partial_fixtures$new_id <- as.character(partial_fixtures$new_id)
+      
+      url <- 'https://perodriguezl-russia-2018-worldcup-tournament-v1.p.mashape.com/public/tournament/1'
+      r <-  GET(url,add_headers(`X-Mashape-Key` = "GfEVgWsBovmshScrSarHgMWOihvjp17eUsvjsnwtfD1M1esYX9"))
+      fixt <-  as.data.frame(t(as.data.frame(unlist(content(r)$data[[1]]))),
+                             row.names = NULL)
+      
+      for( i in 2:64)
+      {
+        b <- as.data.frame(t(as.data.frame(unlist(content(r)$data[[i]]))),
+                           row.names = NULL)
+        fixt <- bind_rows(fixt,b)
+      }
+      
+      fixt$countdown <- as.numeric(fixt$countdown)
+      fixtures$new_id <- as.character(fixtures$new_id)
+      fixt_to_be_added <- fixt %>% select(GameID = id,
+                                          true_Home_Goals = results.home ,
+                                          true_Away_Goals = results.visitor ,
+                                          finished,
+                                          countdown) %>% mutate(started = ifelse(countdown == 0,TRUE,FALSE),
+                                                                active  = ifelse(finished  == FALSE & countdown == 0,TRUE,FALSE)) %>% 
+        left_join(fixtures %>% select(new_id,NameID),by = c('GameID'='new_id'))   %>% mutate(Active_Included = ifelse(started == TRUE & active == FALSE,'Complited Games',
+                                                                                                                      ifelse(started == TRUE & active == TRUE,'Active Games',
+                                                                                                                             'Future Games'))) %>% 
+        mutate(true_Direction  = ifelse(true_Home_Goals>true_Away_Goals,"Home",
+                                        ifelse(true_Home_Goals<true_Away_Goals,"Away",
+                                               "Draw"))) %>%
+        select(GameID,NameID,countdown,finished,started,active,Active_Included,true_Home_Goals,true_Away_Goals,true_Direction)
+      
+      partial_fixtures$new_id <- as.character(partial_fixtures$new_id)
+      
+      final <- partial_fixtures %>% inner_join(fixt_to_be_added,by = c('new_id'='GameID'))
+      
+      fixtures <- final
+      all_df_list$fixtures$df <- final
+    }
+    
     # resultes_edited - data join between user's predictions & real results
     {
       # Results edited join between the fixtures and the user results (Group Stage), for each user, in each game 
@@ -401,7 +456,7 @@ shinyServer(function(input, output) {
                                               "Away")),
                NameID = paste0(user_Home," - ",user_Away)) %>% 
         inner_join(all_df_list$fixtures$df,
-                   by = c("NameID")) %>% left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
+                   by = c("NameID"="NameID.y")) %>% left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
       
       # Results knokout edited join between the fixtures and the user results (knokout), for each user, in each game 
       
@@ -423,7 +478,7 @@ shinyServer(function(input, output) {
                                                    "Away")),
                user_Direction = ifelse(user_dir_validation == 'Draw',user_Direction_pre,user_dir_validation)) %>%
         select(`User Name`,`Submission ID`,user_Home,user_Away,user_Home_Goals,user_Away_Goals,user_Direction,NameID) %>%
-        inner_join(all_df_list$fixtures$df,by = c("NameID")) %>% 
+        inner_join(all_df_list$fixtures$df,by = c("NameID"="NameID.y")) %>% 
         left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
       
       # Creating one version of truth - comparing between user predictions to real results and connect the Group Stage & Knokout bulks
@@ -433,6 +488,7 @@ shinyServer(function(input, output) {
       resultes_edited$user_Away_Goals <-   as.numeric(resultes_edited$user_Away_Goals)
       resultes_edited$user_Home_Goals <-   as.numeric(resultes_edited$user_Home_Goals)
       resultes_edited$true_Direction <- as.character(resultes_edited$true_Direction)
+      
       # adding Points vector with the user's points for each user in each match
       
       # Empty vector
@@ -444,7 +500,7 @@ shinyServer(function(input, output) {
         if(x$started %in% c("TRUE"))
         {
           user <- c(x$user_Home_Goals,x$user_Away_Goals,x$user_Direction)
-          true <- c(x$true_Away_Goals,x$true_Home_Goals,x$true_Direction)
+          true <- c(x$true_Home_Goals,x$true_Away_Goals,x$true_Direction)
           if(x$Stage == "Group Stage")
           {
             return(ifelse(sum(user == true) == 3,3,ifelse(user[3] == true[3],1,0)))
@@ -469,6 +525,8 @@ shinyServer(function(input, output) {
                                                             boom = ifelse(user_game_points>1,TRUE,FALSE),
                                                             winning_goals = ifelse(boom == TRUE,as.numeric(user_Home_Goals)+
                                                                                      as.numeric(true_Away_Goals),0))
+      
+      
       
     }
     
@@ -511,6 +569,7 @@ shinyServer(function(input, output) {
                                    "$(this.api().table().header()).css({'background-color': '#F9E79F', 'color': '#00384A'});",
                                    "}"),
                                  searching = FALSE,
+                                 lengthChange=FALSE,
                                  columnDefs = list(list(width = 200, targets =  "_all" ),
                                                    list(className = 'dt-center', targets = "_all")),
                                  scrollX=TRUE,
@@ -536,13 +595,7 @@ shinyServer(function(input, output) {
   polo_3 <- reactive({user_rank_by_day %>% filter(`User` %in% input$userID)})
   
   # Select all configuration
-  observe({
-    if ("Select All" %in% input$userID) {
-      # choose all the choices _except_ "Select All"
-      selected_choices <- setdiff(choices$userID, "Select All")
-      updateSelectInput(session, 'userID', selected = selected_choices)
-    }
-  })
+
   
   output$lineplot <- renderPlot({
     
@@ -578,6 +631,7 @@ shinyServer(function(input, output) {
                 mutate(Rank=row_number(),`Won Stage` = ifelse(Rank %in% c(1,2),"Yes","No")) %>%
                 select(Rank,everything()),
               options = list(pageLength = 32,
+                             searching = FALSE,
                              columnDefs = list(list(width = '5%', targets = "_all"),
                                                list(className = 'dt-center', targets = "_all")),
                              list(visible=FALSE, targets=c(1,6)),
@@ -590,28 +644,35 @@ shinyServer(function(input, output) {
                   color = styleEqual(c('Yes','No'),c('green','red'))) 
   })
   
+
+  
+  user_predictions <- user_guesses %>% left_join(fixtures %>% select(GameID,Active_Included),by = c('GameID'))
+  
   # User Guesses Tab II 
-  polo_5 <- reactive({ user_guesses %>%
+  
+  polo_5 <- reactive({ user_predictions %>%
       filter(User %in% input$userID) %>% select(-c(GameID,Hour,Stage))
   })
   
   # User Guesses Tab Output II 
+  
   output$user_guess <- renderDataTable({
-    datatable(data = polo_5(),
+    
+    datatable(data = polo_5() %>% mutate(finished = ifelse(Active_Included=="Complited Games",'Yes','No')) %>% select(-Active_Included),
               options = list(pageLength = 48,
+                             searching = FALSE,
                              columnDefs = list(list(width = '10px', targets = "_all"),
                                                list(className = 'dt-center', targets = "_all"))), 
               rownames = FALSE,
               class = 'cell-border stripe') %>% 
-      formatStyle("Date",
+      formatStyle("finished",
                   target = 'row',
-                  backgroundColor  = 'white',
+                  backgroundColor  = styleEqual(c('Yes','No'),c("#E3D7E5","white")),
                   color = "#00384A") 
     
   })
-  
   ################ Dorki ###########################
-  
+  {
   next_game_tbl <- reactive({
     resultes_edited %>%
       filter(NameID %in% input$nameID) %>%
@@ -745,7 +806,7 @@ shinyServer(function(input, output) {
     
     
   })
-  
+  } 
   
   output$title <- renderUI({
     
@@ -761,6 +822,53 @@ shinyServer(function(input, output) {
     fixtures <-  all_df_list$fixtures$df 
     
     
+    ### Fixtures & Score API Joined 
+    {
+      fixtures <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vTNgD6oZivKRepzwPWDc",
+                                      "YMg4tOQQq8B3sJLFdtHHE7p8lYs4lv_C4Wk_B3lkAPx-nZA",
+                                      "4O6DETuEAhxw/pub?gid=0&single=true&output=csv")),
+                           stringsAsFactors = FALSE)
+      
+      partial_fixtures <- fixtures %>% select(-c(started,active,Active_Included,true_Home_Goals,true_Away_Goals,true_Direction))
+      
+      partial_fixtures$new_id <- as.character(partial_fixtures$new_id)
+      
+      url <- 'https://perodriguezl-russia-2018-worldcup-tournament-v1.p.mashape.com/public/tournament/1'
+      r <-  GET(url,add_headers(`X-Mashape-Key` = "GfEVgWsBovmshScrSarHgMWOihvjp17eUsvjsnwtfD1M1esYX9"))
+      fixt <-  as.data.frame(t(as.data.frame(unlist(content(r)$data[[1]]))),
+                             row.names = NULL)
+      
+      for( i in 2:64)
+      {
+        b <- as.data.frame(t(as.data.frame(unlist(content(r)$data[[i]]))),
+                           row.names = NULL)
+        fixt <- bind_rows(fixt,b)
+      }
+      
+      fixt$countdown <- as.numeric(fixt$countdown)
+      fixtures$new_id <- as.character(fixtures$new_id)
+      fixt_to_be_added <- fixt %>% select(GameID = id,
+                                          true_Home_Goals = results.home ,
+                                          true_Away_Goals = results.visitor ,
+                                          finished,
+                                          countdown) %>% mutate(started = ifelse(countdown == 0,TRUE,FALSE),
+                                                                active  = ifelse(finished  == FALSE & countdown == 0,TRUE,FALSE)) %>% 
+        left_join(fixtures %>% select(new_id,NameID),by = c('GameID'='new_id'))   %>% mutate(Active_Included = ifelse(started == TRUE & active == FALSE,'Complited Games',
+                                                                                                                      ifelse(started == TRUE & active == TRUE,'Active Games',
+                                                                                                                             'Future Games'))) %>% 
+        mutate(true_Direction  = ifelse(true_Home_Goals>true_Away_Goals,"Home",
+                                        ifelse(true_Home_Goals<true_Away_Goals,"Away",
+                                               "Draw"))) %>%
+        select(GameID,NameID,countdown,finished,started,active,Active_Included,true_Home_Goals,true_Away_Goals,true_Direction)
+      
+      partial_fixtures$new_id <- as.character(partial_fixtures$new_id)
+      
+      final <- partial_fixtures %>% inner_join(fixt_to_be_added,by = c('new_id'='GameID'))
+      
+      fixtures <- final
+      all_df_list$fixtures$df <- final
+    }
+    
     # resultes_edited - data join between user's predictions & real results
     {
       # Results edited join between the fixtures and the user results (Group Stage), for each user, in each game 
@@ -774,7 +882,7 @@ shinyServer(function(input, output) {
                                               "Away")),
                NameID = paste0(user_Home," - ",user_Away)) %>% 
         inner_join(all_df_list$fixtures$df,
-                   by = c("NameID")) %>% left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
+                   by = c("NameID"="NameID.y")) %>% left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
       
       # Results knokout edited join between the fixtures and the user results (knokout), for each user, in each game 
       
@@ -796,7 +904,7 @@ shinyServer(function(input, output) {
                                                    "Away")),
                user_Direction = ifelse(user_dir_validation == 'Draw',user_Direction_pre,user_dir_validation)) %>%
         select(`User Name`,`Submission ID`,user_Home,user_Away,user_Home_Goals,user_Away_Goals,user_Direction,NameID) %>%
-        inner_join(all_df_list$fixtures$df,by = c("NameID")) %>% 
+        inner_join(all_df_list$fixtures$df,by = c("NameID"="NameID.y")) %>% 
         left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
       
       # Creating one version of truth - comparing between user predictions to real results and connect the Group Stage & Knokout bulks
@@ -806,10 +914,32 @@ shinyServer(function(input, output) {
       resultes_edited$user_Away_Goals <-   as.numeric(resultes_edited$user_Away_Goals)
       resultes_edited$user_Home_Goals <-   as.numeric(resultes_edited$user_Home_Goals)
       resultes_edited$true_Direction <- as.character(resultes_edited$true_Direction)
+      
       # adding Points vector with the user's points for each user in each match
       
       # Empty vector
       user_game_points <- rep(NA,nrow(resultes_edited))
+      
+      
+      worldcup_points <- function(x)
+      {
+        if(x$started %in% c("TRUE"))
+        {
+          user <- c(x$user_Home_Goals,x$user_Away_Goals,x$user_Direction)
+          true <- c(x$true_Home_Goals,x$true_Away_Goals,x$true_Direction)
+          if(x$Stage == "Group Stage")
+          {
+            return(ifelse(sum(user == true) == 3,3,ifelse(user[3] == true[3],1,0)))
+          }else{
+            return(ifelse(sum(user == true) == 3 ,
+                          4,
+                          ifelse(user[3] == true[3] | (user[1:2] == true[1:2] & user[3] != true[3]),
+                                 1,
+                                 0)))
+          }
+        }else{return(0)}
+      }
+      
       
       # apply worldcup points function for each row in the results edited
       for(i in 1:nrow(resultes_edited)){
@@ -821,6 +951,8 @@ shinyServer(function(input, output) {
                                                             boom = ifelse(user_game_points>1,TRUE,FALSE),
                                                             winning_goals = ifelse(boom == TRUE,as.numeric(user_Home_Goals)+
                                                                                      as.numeric(true_Away_Goals),0))
+      
+      
       
     }
     
@@ -846,23 +978,40 @@ shinyServer(function(input, output) {
       current_cup_rank <-   fixtures$Cup_Rank[which(fixtures$GameID == current_game)]
     }
     
-    
     text <- paste0(fixtures$true_Home[current_game],
-                   "     ",
+                   " ",
                    fixtures$true_Home_Goals[current_game],
                    " - ",
                    fixtures$true_Away_Goals[current_game],
-                   "     ",
-                   fixtures$true_Away[current_game]
-    )
+                   " ",
+                   fixtures$true_Away[current_game])
+    
+    hour <- hour(Sys.time()) + 3
+    minute <- ifelse(nchar(minute(Sys.time())) == 1,paste0(0,minute(Sys.time())),minute(Sys.time()))
+    
+    countdown_to <- paste0('Countdown - ',round(fixtures$countdown[current_game]/(60),0)," minutes ")
+    
+    if(fixtures$countdown[current_game] == 0)
+    {
+      html_text <- paste0('<div style = "background-color: #F70443; width: 100%; height: 75px; border-radius: 4px;">
+                          <center> <font size="4"> <font color="#F8F9F9"> Live Score : <br>',text,'<br>',hour,":", minute,
+                          '</div>')
+    }else{
+      html_text <- paste0('<div style = "background-color: #F70443; width: 100%; height: 75px; border-radius: 4px;">
+                          <center> <font size="4"> <font color="#F8F9F9"> Next Game : <br>',text,'<br>',countdown_to,
+                          '</div>')
+    }
     
     
-    HTML(paste0('<div style = "background-color: #F70443; width: 100%; height: 56px; border-radius: 4px;">
-                <center> <font size="4"> <font color="#F8F9F9"> Live Score : <br>',text,
-                '</div>'))
+    
+    HTML(html_text)
+    
+    
+    
+    
+    
+    
   })
-  
-  
   
   ############# Live Game Indicator ################
   
@@ -879,6 +1028,52 @@ shinyServer(function(input, output) {
     
     all_df_list$fixtures$df  <- fixtures
     
+    ### Fixtures & Score API Joined 
+    {
+      fixtures <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vTNgD6oZivKRepzwPWDc",
+                                      "YMg4tOQQq8B3sJLFdtHHE7p8lYs4lv_C4Wk_B3lkAPx-nZA",
+                                      "4O6DETuEAhxw/pub?gid=0&single=true&output=csv")),
+                           stringsAsFactors = FALSE)
+      
+      partial_fixtures <- fixtures %>% select(-c(started,active,Active_Included,true_Home_Goals,true_Away_Goals,true_Direction))
+      
+      partial_fixtures$new_id <- as.character(partial_fixtures$new_id)
+      
+      url <- 'https://perodriguezl-russia-2018-worldcup-tournament-v1.p.mashape.com/public/tournament/1'
+      r <-  GET(url,add_headers(`X-Mashape-Key` = "GfEVgWsBovmshScrSarHgMWOihvjp17eUsvjsnwtfD1M1esYX9"))
+      fixt <-  as.data.frame(t(as.data.frame(unlist(content(r)$data[[1]]))),
+                             row.names = NULL)
+      
+      for( i in 2:64)
+      {
+        b <- as.data.frame(t(as.data.frame(unlist(content(r)$data[[i]]))),
+                           row.names = NULL)
+        fixt <- bind_rows(fixt,b)
+      }
+      
+      fixt$countdown <- as.numeric(fixt$countdown)
+      fixtures$new_id <- as.character(fixtures$new_id)
+      fixt_to_be_added <- fixt %>% select(GameID = id,
+                                          true_Home_Goals = results.home ,
+                                          true_Away_Goals = results.visitor ,
+                                          finished,
+                                          countdown) %>% mutate(started = ifelse(countdown == 0,TRUE,FALSE),
+                                                                active  = ifelse(finished  == FALSE & countdown == 0,TRUE,FALSE)) %>% 
+        left_join(fixtures %>% select(new_id,NameID),by = c('GameID'='new_id'))   %>% mutate(Active_Included = ifelse(started == TRUE & active == FALSE,'Complited Games',
+                                                                                                                      ifelse(started == TRUE & active == TRUE,'Active Games',
+                                                                                                                             'Future Games'))) %>% 
+        mutate(true_Direction  = ifelse(true_Home_Goals>true_Away_Goals,"Home",
+                                        ifelse(true_Home_Goals<true_Away_Goals,"Away",
+                                               "Draw"))) %>%
+        select(GameID,NameID,countdown,finished,started,active,Active_Included,true_Home_Goals,true_Away_Goals,true_Direction)
+      
+      partial_fixtures$new_id <- as.character(partial_fixtures$new_id)
+      
+      final <- partial_fixtures %>% inner_join(fixt_to_be_added,by = c('new_id'='GameID'))
+      
+      fixtures <- final
+      all_df_list$fixtures$df <- final
+    }
     
     
     # resultes_edited - data join between user's predictions & real results
@@ -894,7 +1089,7 @@ shinyServer(function(input, output) {
                                               "Away")),
                NameID = paste0(user_Home," - ",user_Away)) %>% 
         inner_join(all_df_list$fixtures$df,
-                   by = c("NameID")) %>% left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
+                   by = c("NameID"="NameID.y")) %>% left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
       
       # Results knokout edited join between the fixtures and the user results (knokout), for each user, in each game 
       
@@ -916,7 +1111,7 @@ shinyServer(function(input, output) {
                                                    "Away")),
                user_Direction = ifelse(user_dir_validation == 'Draw',user_Direction_pre,user_dir_validation)) %>%
         select(`User Name`,`Submission ID`,user_Home,user_Away,user_Home_Goals,user_Away_Goals,user_Direction,NameID) %>%
-        inner_join(all_df_list$fixtures$df,by = c("NameID")) %>% 
+        inner_join(all_df_list$fixtures$df,by = c("NameID"="NameID.y")) %>% 
         left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
       
       # Creating one version of truth - comparing between user predictions to real results and connect the Group Stage & Knokout bulks
@@ -925,11 +1120,33 @@ shinyServer(function(input, output) {
       
       resultes_edited$user_Away_Goals <-   as.numeric(resultes_edited$user_Away_Goals)
       resultes_edited$user_Home_Goals <-   as.numeric(resultes_edited$user_Home_Goals)
-      resultes_edited$true_Direction <- as.character(resultes_edited$user_Direction)
+      resultes_edited$true_Direction <- as.character(resultes_edited$true_Direction)
+      
       # adding Points vector with the user's points for each user in each match
       
       # Empty vector
       user_game_points <- rep(NA,nrow(resultes_edited))
+      
+      
+      worldcup_points <- function(x)
+      {
+        if(x$started %in% c("TRUE"))
+        {
+          user <- c(x$user_Home_Goals,x$user_Away_Goals,x$user_Direction)
+          true <- c(x$true_Home_Goals,x$true_Away_Goals,x$true_Direction)
+          if(x$Stage == "Group Stage")
+          {
+            return(ifelse(sum(user == true) == 3,3,ifelse(user[3] == true[3],1,0)))
+          }else{
+            return(ifelse(sum(user == true) == 3 ,
+                          4,
+                          ifelse(user[3] == true[3] | (user[1:2] == true[1:2] & user[3] != true[3]),
+                                 1,
+                                 0)))
+          }
+        }else{return(0)}
+      }
+      
       
       # apply worldcup points function for each row in the results edited
       for(i in 1:nrow(resultes_edited)){
@@ -941,6 +1158,8 @@ shinyServer(function(input, output) {
                                                             boom = ifelse(user_game_points>1,TRUE,FALSE),
                                                             winning_goals = ifelse(boom == TRUE,as.numeric(user_Home_Goals)+
                                                                                      as.numeric(true_Away_Goals),0))
+      
+      
       
     }
     
@@ -957,12 +1176,9 @@ shinyServer(function(input, output) {
       inner_join(r_2) %>% left_join(User_ID %>% select(Full.Name,User_Nick),by=c('User.Name'='Full.Name')) %>%
       select(-User.Name) %>% select(User = User_Nick,everything())
     
-    names_knok <- fixtures$NameID[49:nrow(fixtures)]
+    names_knok <- initial_fixtures$NameID[49:nrow(initial_fixtures)]
     dup_names_knok <- paste0(names_knok," - winner")
     names(knokout) <- c('User_Nick',sort(c(names_knok,dup_names_knok)))
-    
-    
-    
     
     
     
@@ -987,25 +1203,25 @@ shinyServer(function(input, output) {
     }
     
     
-    all_games <- all_df_list$resultes$df %>% inner_join(knokout,by = c('User_Nick'))
+    all_games <- all_df_list$resultes$df %>% inner_join(knokout,
+                                                        by = c('User_Nick'))
+    
     
     
     test_game_pre_result <- all_games %>% select(User = 'User_Nick',current_Game_Name) 
     ##
     
-    
-    
     test_game <- test_game_pre_result %>% 
       separate(current_Game_Name,into = c('U1.Home','U1.Away'),remove = FALSE) %>%
-      mutate(T.Home = as.numeric(fixtures$true_Home_Goals[which(fixtures$NameID == current_Game_Name)]),
-             T.Away = as.numeric(fixtures$true_Away_Goals[which(fixtures$NameID == current_Game_Name)]),
+      mutate(T.Home = as.numeric(fixtures$true_Home_Goals[which(initial_fixtures$NameID == current_Game_Name)]),
+             T.Away = as.numeric(fixtures$true_Away_Goals[which(initial_fixtures$NameID == current_Game_Name)]),
              U.Home = as.numeric(U1.Home),
              U.Away = as.numeric(U1.Away),
              D.Home = T.Home-U.Home,
              D.Away = T.Away-U.Away) %>%
       filter(D.Home<= 0 & D.Away<=0) %>% select(User,current_Game_Name)
     
-    true_result <- fixtures[which(fixtures$NameID == names(test_game)[2]),
+    true_result <- fixtures[which(initial_fixtures$NameID == names(test_game)[2]),
                             c(which(names(fixtures) == 'true_Home_Goals'),
                               which(names(fixtures)== 'true_Away_Goals'))]
     
@@ -1059,6 +1275,54 @@ shinyServer(function(input, output) {
     
     all_df_list$fixtures$df  <- fixtures
     
+    ### Fixtures & Score API Joined 
+    {
+      fixtures <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vTNgD6oZivKRepzwPWDc",
+                                      "YMg4tOQQq8B3sJLFdtHHE7p8lYs4lv_C4Wk_B3lkAPx-nZA",
+                                      "4O6DETuEAhxw/pub?gid=0&single=true&output=csv")),
+                           stringsAsFactors = FALSE)
+      
+      partial_fixtures <- fixtures %>% select(-c(started,active,Active_Included,true_Home_Goals,true_Away_Goals,true_Direction))
+      
+      partial_fixtures$new_id <- as.character(partial_fixtures$new_id)
+      
+      url <- 'https://perodriguezl-russia-2018-worldcup-tournament-v1.p.mashape.com/public/tournament/1'
+      r <-  GET(url,add_headers(`X-Mashape-Key` = "GfEVgWsBovmshScrSarHgMWOihvjp17eUsvjsnwtfD1M1esYX9"))
+      fixt <-  as.data.frame(t(as.data.frame(unlist(content(r)$data[[1]]))),
+                             row.names = NULL)
+      
+      for( i in 2:64)
+      {
+        b <- as.data.frame(t(as.data.frame(unlist(content(r)$data[[i]]))),
+                           row.names = NULL)
+        fixt <- bind_rows(fixt,b)
+      }
+      
+      fixt$countdown <- as.numeric(fixt$countdown)
+      fixtures$new_id <- as.character(fixtures$new_id)
+      fixt_to_be_added <- fixt %>% select(GameID = id,
+                                          true_Home_Goals = results.home ,
+                                          true_Away_Goals = results.visitor ,
+                                          finished,
+                                          countdown) %>% mutate(started = ifelse(countdown == 0,TRUE,FALSE),
+                                                                active  = ifelse(finished  == FALSE & countdown == 0,TRUE,FALSE)) %>% 
+        left_join(fixtures %>% select(new_id,NameID),by = c('GameID'='new_id'))   %>% mutate(Active_Included = ifelse(started == TRUE & active == FALSE,'Complited Games',
+                                                                                                                      ifelse(started == TRUE & active == TRUE,'Active Games',
+                                                                                                                             'Future Games'))) %>% 
+        mutate(true_Direction  = ifelse(true_Home_Goals>true_Away_Goals,"Home",
+                                        ifelse(true_Home_Goals<true_Away_Goals,"Away",
+                                               "Draw"))) %>%
+        select(GameID,NameID,countdown,finished,started,active,Active_Included,true_Home_Goals,true_Away_Goals,true_Direction)
+      
+      partial_fixtures$new_id <- as.character(partial_fixtures$new_id)
+      
+      final <- partial_fixtures %>% inner_join(fixt_to_be_added,by = c('new_id'='GameID'))
+      
+      fixtures <- final
+      all_df_list$fixtures$df <- final
+    }
+    
+    
     # resultes_edited - data join between user's predictions & real results
     {
       # Results edited join between the fixtures and the user results (Group Stage), for each user, in each game 
@@ -1072,7 +1336,7 @@ shinyServer(function(input, output) {
                                               "Away")),
                NameID = paste0(user_Home," - ",user_Away)) %>% 
         inner_join(all_df_list$fixtures$df,
-                   by = c("NameID")) %>% left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
+                   by = c("NameID"="NameID.y")) %>% left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
       
       # Results knokout edited join between the fixtures and the user results (knokout), for each user, in each game 
       
@@ -1094,7 +1358,7 @@ shinyServer(function(input, output) {
                                                    "Away")),
                user_Direction = ifelse(user_dir_validation == 'Draw',user_Direction_pre,user_dir_validation)) %>%
         select(`User Name`,`Submission ID`,user_Home,user_Away,user_Home_Goals,user_Away_Goals,user_Direction,NameID) %>%
-        inner_join(all_df_list$fixtures$df,by = c("NameID")) %>% 
+        inner_join(all_df_list$fixtures$df,by = c("NameID"="NameID.y")) %>% 
         left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
       
       # Creating one version of truth - comparing between user predictions to real results and connect the Group Stage & Knokout bulks
@@ -1103,11 +1367,33 @@ shinyServer(function(input, output) {
       
       resultes_edited$user_Away_Goals <-   as.numeric(resultes_edited$user_Away_Goals)
       resultes_edited$user_Home_Goals <-   as.numeric(resultes_edited$user_Home_Goals)
-      resultes_edited$true_Direction <- as.character(resultes_edited$user_Direction)
+      resultes_edited$true_Direction <- as.character(resultes_edited$true_Direction)
+      
       # adding Points vector with the user's points for each user in each match
       
       # Empty vector
       user_game_points <- rep(NA,nrow(resultes_edited))
+      
+      
+      worldcup_points <- function(x)
+      {
+        if(x$started %in% c("TRUE"))
+        {
+          user <- c(x$user_Home_Goals,x$user_Away_Goals,x$user_Direction)
+          true <- c(x$true_Home_Goals,x$true_Away_Goals,x$true_Direction)
+          if(x$Stage == "Group Stage")
+          {
+            return(ifelse(sum(user == true) == 3,3,ifelse(user[3] == true[3],1,0)))
+          }else{
+            return(ifelse(sum(user == true) == 3 ,
+                          4,
+                          ifelse(user[3] == true[3] | (user[1:2] == true[1:2] & user[3] != true[3]),
+                                 1,
+                                 0)))
+          }
+        }else{return(0)}
+      }
+      
       
       # apply worldcup points function for each row in the results edited
       for(i in 1:nrow(resultes_edited)){
@@ -1119,6 +1405,8 @@ shinyServer(function(input, output) {
                                                             boom = ifelse(user_game_points>1,TRUE,FALSE),
                                                             winning_goals = ifelse(boom == TRUE,as.numeric(user_Home_Goals)+
                                                                                      as.numeric(true_Away_Goals),0))
+      
+      
       
     }
     
@@ -1135,7 +1423,7 @@ shinyServer(function(input, output) {
       inner_join(r_2) %>% left_join(User_ID %>% select(Full.Name,User_Nick),by=c('User.Name'='Full.Name')) %>%
       select(-User.Name) %>% select(User = User_Nick,everything())
     
-    names_knok <- fixtures$NameID[49:nrow(fixtures)]
+    names_knok <- initial_fixtures$NameID[49:nrow(initial_fixtures)]
     dup_names_knok <- paste0(names_knok," - winner")
     names(knokout) <- c('User_Nick',sort(c(names_knok,dup_names_knok)))
     
@@ -1171,38 +1459,96 @@ shinyServer(function(input, output) {
     
     test_game <- test_game_pre_result %>% 
       separate(current_Game_Name,into = c('U1.Home','U1.Away'),remove = FALSE) %>%
-      mutate(T.Home = as.numeric(fixtures$true_Home_Goals[which(fixtures$NameID == current_Game_Name)]),
-             T.Away = as.numeric(fixtures$true_Away_Goals[which(fixtures$NameID == current_Game_Name)]),
+      mutate(T.Home = as.numeric(fixtures$true_Home_Goals[which(initial_fixtures$NameID == current_Game_Name)]),
+             T.Away = as.numeric(fixtures$true_Away_Goals[which(initial_fixtures$NameID == current_Game_Name)]),
              U.Home = as.numeric(U1.Home),
              U.Away = as.numeric(U1.Away),
              D.Home = T.Home-U.Home,
              D.Away = T.Away-U.Away) %>%
       filter(D.Home<= 0 & D.Away<=0) %>% select(User,current_Game_Name)
     
-    true_result <- fixtures[which(fixtures$NameID == names(test_game)[2]),
+    true_result <- fixtures[which(initial_fixtures$NameID == names(test_game)[2]),
                             c(which(names(fixtures) == 'true_Home_Goals'),
                               which(names(fixtures)== 'true_Away_Goals'))]
     
-    res_dist <- test_game %>% mutate(Home = true_result$true_Home_Goals,
-                                     Away = true_result$true_Away_Goals) %>%
-      separate(names(test_game)[2],into=c('H.Res','A.Res'),sep="-") %>% 
-      mutate(Result = paste0(H.Res,"-",A.Res),
-             dist = abs(as.numeric(Home)-as.numeric(H.Res)) + 
-               abs(as.numeric(Away)-as.numeric(A.Res))) %>% select(User,Result,dist) %>%
-      distinct(Result,dist)
+    #### Special treatment to 0 or 1 remaining results
+    
+    N_test_game <- nrow(test_game)
     
     
-    user_dist <- data.frame(Result = test_game$User,
-                            dist   = 1)
     
-    dist_w = bind_rows(user_dist,res_dist) %>% 
-      mutate(w = ifelse(nchar(Result)==3,ifelse(dist == 0,2,dist^(-1)),3),
-             w2 = ifelse(nchar(Result)==3,10*w,w))
-    
-    graph_array <- array(data = NA,dim = c(nrow(test_game),length(unique(test_game[,2]))))
-    
-    dimnames(graph_array)[[1]] <- as.character(test_game$User)
-    dimnames(graph_array)[[2]] <- unique(test_game[,2])
+    if(N_test_game == 1)
+    {
+      res_dist <- test_game %>% mutate(Home = true_result$true_Home_Goals,
+                                       Away = true_result$true_Away_Goals) %>%
+        separate(names(test_game)[2],into=c('H.Res','A.Res'),sep="-") %>% 
+        mutate(Result = paste0(H.Res,"-",A.Res),
+               dist = abs(as.numeric(Home)-as.numeric(H.Res)) + 
+                 abs(as.numeric(Away)-as.numeric(A.Res))) %>% select(User,Result,dist) %>%
+        distinct(Result,dist)
+      
+      
+      user_dist <- data.frame(Result = test_game$User,
+                              dist   = 1)
+      
+      dist_w = bind_rows(user_dist,res_dist) %>% 
+        mutate(w = ifelse(grepl("-",Result),ifelse(dist == 0,2,dist^(-1)),3),
+               w2 = ifelse(grepl("-",Result),10*w,w))
+      
+      graph_array <- array(data = NA,dim = c(nrow(test_game),length(unique(test_game[,2]))))
+      
+      dimnames(graph_array)[[1]] <- list(as.character(test_game$User))
+      dimnames(graph_array)[[2]] <- unique(test_game[,2])
+    }else{
+      if(N_test_game == 0)
+      {
+        test_game <- test_game_pre_result
+        
+        res_dist <- test_game %>% mutate(Home = true_result$true_Home_Goals,
+                                         Away = true_result$true_Away_Goals) %>%
+          separate(names(test_game)[2],into=c('H.Res','A.Res'),sep="-") %>% 
+          mutate(Result = paste0(H.Res,"-",A.Res),
+                 dist = abs(as.numeric(Home)-as.numeric(H.Res)) + 
+                   abs(as.numeric(Away)-as.numeric(A.Res))) %>% select(User,Result,dist) %>%
+          distinct(Result,dist)
+        
+        
+        user_dist <- data.frame(Result = test_game$User,
+                                dist   = 1)
+        
+        dist_w = bind_rows(user_dist,res_dist) %>% 
+          mutate(w = ifelse(grepl("-",Result),ifelse(dist == 0,2,dist^(-1)),3),
+                 w2 = ifelse(grepl("-",Result),10*w,w))
+        
+        graph_array <- array(data = NA,dim = c(nrow(test_game),length(unique(test_game[,2]))))
+        
+        dimnames(graph_array)[[1]] <- as.character(test_game$User)
+        dimnames(graph_array)[[2]] <- unique(test_game[,2])
+      }else
+      {
+        res_dist <- test_game %>% mutate(Home = true_result$true_Home_Goals,
+                                         Away = true_result$true_Away_Goals) %>%
+          separate(names(test_game)[2],into=c('H.Res','A.Res'),sep="-") %>% 
+          mutate(Result = paste0(H.Res,"-",A.Res),
+                 dist = abs(as.numeric(Home)-as.numeric(H.Res)) + 
+                   abs(as.numeric(Away)-as.numeric(A.Res))) %>% select(User,Result,dist) %>%
+          distinct(Result,dist)
+        
+        
+        user_dist <- data.frame(Result = test_game$User,
+                                dist   = 1)
+        
+        dist_w = bind_rows(user_dist,res_dist) %>% 
+          mutate(w = ifelse(grepl("-",Result),ifelse(dist == 0,2,dist^(-1)),3),
+                 w2 = ifelse(grepl("-",Result),10*w,w))
+        
+        graph_array <- array(data = NA,dim = c(nrow(test_game),length(unique(test_game[,2]))))
+        
+        dimnames(graph_array)[[1]] <- as.character(test_game$User)
+        dimnames(graph_array)[[2]] <- unique(test_game[,2])
+        
+      }
+    }
     
     for( i in 1:dim(graph_array)[1])
     {
@@ -1216,14 +1562,16 @@ shinyServer(function(input, output) {
     names_1 <- data.frame(nms=dimnames(graph_array)[[1]])
     names_2 <- data.frame(nms=dimnames(graph_array)[[2]])
     N = nrow(names_1) + nrow(names_2)
+    
+    
     nodes <- bind_rows(names_1,names_2) %>% mutate(id = 1:N) %>% select(id,label = nms) %>% 
       left_join(dist_w %>% select(-c(w,dist)),by = c('label'='Result')) %>% 
-      select(id,label,value = w2) %>% mutate(group = ifelse(nchar(label) == 3,'Result','User'),
-                                             shpae = ifelse(nchar(label) == 3,'circle','star'),
-                                             color = ifelse(nchar(label) == 3,'#B0D494','#9FB9E6'), 
-                                             shadow = ifelse(nchar(label) == 3,TRUE,FALSE),
-                                             font.color =ifelse(nchar(label) == 3,'#C0392B','#ECF0F1'),
-                                             font.size = ifelse(nchar(label) == 3,value*5,value*10))
+      select(id,label,value = w2) %>% mutate(group = ifelse(grepl("-",label),'Result','User'),
+                                             shpae = ifelse(grepl("-",label),'circle','star'),
+                                             color = ifelse(grepl("-",label),'#B0D494','#9FB9E6'), 
+                                             shadow = ifelse(grepl("-",label),TRUE,FALSE),
+                                             font.color =ifelse(grepl("-",label),'#C0392B','#ECF0F1'),
+                                             font.size = ifelse(grepl("-",label),value*5,value*10))
     
     
     edges <- graph_array %>% melt()  %>% filter(value!=0) %>%
