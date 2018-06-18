@@ -9,7 +9,7 @@
 
 
 
-##### WorldCup Friends Zone - Shiny App #####
+# WorldCup Friends Zone - Shiny App #####
 
 #Required Packages
 {
@@ -25,7 +25,7 @@
   library(visNetwork)
 }
 
-### Loading Data Sets from Google Sheets
+# Loading Data Sets from Google Sheets
 {
   
   # All Paricipants
@@ -83,7 +83,6 @@
   # and we are all set for data manipulation
 }
 
-
 # all UI filter selection options
 {
   choices <- list(
@@ -111,7 +110,6 @@
 }
 
 
-
 ui <- fluidPage(theme = shinytheme("slate"),
                 
                 # App title ----
@@ -131,7 +129,7 @@ ui <- fluidPage(theme = shinytheme("slate"),
                     selectInput(inputId = "userID",
                                 label =  "User:",
                                 choices  = choices$userID,
-                                selected = choices$userID[sample(31,1)],
+                                selected = choices$userID[sample(32,1)],
                                 multiple = TRUE),     
                     selectInput(inputId = "nameID",
                                 label =  "Game :",
@@ -143,8 +141,6 @@ ui <- fluidPage(theme = shinytheme("slate"),
                   
                   # Main panel for displaying outputs ----
                   mainPanel(
-                    
-                    
                     tabsetPanel(type = "tabs",
                                 tabPanel(title = "League Table",
                                          h4("League Table"),
@@ -177,7 +173,6 @@ ui <- fluidPage(theme = shinytheme("slate"),
                                          uiOutput(outputId = "terms3"),
                                          uiOutput(outputId = "terms4"),
                                          uiOutput(outputId = "terms5"))
-                                
                                 
                     ) 
                   )
