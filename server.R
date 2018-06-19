@@ -1,4 +1,3 @@
-
 #Data Preperation
 {
 #Required Packages
@@ -129,7 +128,53 @@
   
   initial_fixtures <- fixtures
   
-
+  ### Fixtures & Score API Joined 
+  {
+    fixtures <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vTNgD6oZivKRepzwPWDc",
+                                    "YMg4tOQQq8B3sJLFdtHHE7p8lYs4lv_C4Wk_B3lkAPx-nZA",
+                                    "4O6DETuEAhxw/pub?gid=0&single=true&output=csv")),
+                         stringsAsFactors = FALSE)
+    
+    partial_fixtures <- fixtures %>% select(-c(started,active,Active_Included,true_Home_Goals,true_Away_Goals,true_Direction))
+    
+    partial_fixtures$new_id <- as.character(partial_fixtures$new_id)
+    
+    url <- 'https://perodriguezl-russia-2018-worldcup-tournament-v1.p.mashape.com/public/tournament/1'
+    r <-  GET(url,add_headers(`X-Mashape-Key` = "GfEVgWsBovmshScrSarHgMWOihvjp17eUsvjsnwtfD1M1esYX9"))
+    fixt <-  as.data.frame(t(as.data.frame(unlist(content(r)$data[[1]]))),
+                           row.names = NULL)
+    
+    for( i in 2:64)
+    {
+      b <- as.data.frame(t(as.data.frame(unlist(content(r)$data[[i]]))),
+                         row.names = NULL)
+      fixt <- bind_rows(fixt,b)
+    }
+    
+    fixt$countdown <- as.numeric(fixt$countdown)
+    fixtures$new_id <- as.character(fixtures$new_id)
+    fixt_to_be_added <- fixt %>% select(GameID = id,
+                                        true_Home_Goals = results.home ,
+                                        true_Away_Goals = results.visitor ,
+                                        finished,
+                                        countdown) %>% mutate(started = ifelse(countdown == 0,TRUE,FALSE),
+                                                              active  = ifelse(finished  == FALSE & countdown == 0,TRUE,FALSE)) %>% 
+      left_join(fixtures %>% select(new_id,NameID),by = c('GameID'='new_id'))   %>% mutate(Active_Included = ifelse(started == TRUE & active == FALSE,'Complited Games',
+                                                                                                                    ifelse(started == TRUE & active == TRUE,'Active Games',
+                                                                                                                           'Future Games'))) %>% 
+      mutate(true_Direction  = ifelse(true_Home_Goals>true_Away_Goals,"Home",
+                                      ifelse(true_Home_Goals<true_Away_Goals,"Away",
+                                             "Draw"))) %>%
+      select(GameID,NameID,countdown,finished,started,active,Active_Included,true_Home_Goals,true_Away_Goals,true_Direction)
+    
+    partial_fixtures$new_id <- as.character(partial_fixtures$new_id)
+    
+    final <- partial_fixtures %>% inner_join(fixt_to_be_added,by = c('new_id'='GameID'))
+    
+    fixtures <- final
+    
+  }
+  
   
   resultes <-   read.csv(url(paste0('https://docs.google.com/spreadsheets/d/e/2',
   'PACX-1vTQKuVDYTvMW9nB24QGAQ0M5l8xgeUGYbCjGTX3dxeQ1j',
@@ -152,7 +197,7 @@
   
   knokout_col_adj <- fixtures %>% filter(Stage != "Group Stage") %>% 
     select(GameID,
-           original_fixture_name = NameID)  %>% 
+           original_fixture_name = NameID.y)  %>% 
     mutate(resultes_knokout_name = (names(resultes_knokout)[-c(1,2)])[seq(1,32,by=2)])
   
   
@@ -173,16 +218,6 @@
   # and we are all set for data manipulation
 }
 
-# all UI filter selection options
-{
-  choices <- list(
-    nameID = unique(fixtures$NameID),
-    userID = c(levels(sort(User_ID$`User_Nick`))),
-    Active =  unique(sort(fixtures$Active_Included)),
-    Cup = unique((fixtures %>% filter(Cup_Stage != "None"))$Cup_Stage)
-  )
-}
-
 # resultes_edited - crucial data join between user's predictions & real results
 {
   # Results edited join between the fixtures and the user results (Group Stage), for each user, in each game 
@@ -196,7 +231,7 @@
                                           "Away")),
            NameID = paste0(user_Home," - ",user_Away)) %>% 
     inner_join(all_df_list$fixtures$df,
-               by = c("NameID")) %>% left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
+               by = c("NameID"="NameID.y")) %>% left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
   
   # Results knokout edited join between the fixtures and the user results (knokout), for each user, in each game 
   
@@ -218,7 +253,7 @@
                                                "Away")),
            user_Direction = ifelse(user_dir_validation == 'Draw',user_Direction_pre,user_dir_validation)) %>%
     select(`User Name`,`Submission ID`,user_Home,user_Away,user_Home_Goals,user_Away_Goals,user_Direction,NameID) %>%
-    inner_join(all_df_list$fixtures$df,by = c("NameID")) %>% 
+    inner_join(all_df_list$fixtures$df,by = c("NameID"="NameID.y")) %>% 
     left_join(User_ID %>% select(User = `Full.Name`,User_Nick),by = c('User Name'='User'))
   
   # Creating one version of truth - comparing between user predictions to real results and connect the Group Stage & Knokout bulks
@@ -247,7 +282,7 @@
   N_games_complited = sum(fixtures$started == TRUE & fixtures$active == FALSE)
   N_games = sum(fixtures$started == TRUE)
 }
-
+  
 # User's league table #asItStands 
 {
   league_standings <- user_results_validation  %>% 
@@ -300,14 +335,14 @@ date.id <- fixtures %>% select(Date,GameID) %>% arrange(GameID) %>%
                                      `User Name`=User.Name,everything()))[,
                                                                           c(1,2,seq(3,16*2+2,2))]
   
-  names(temp_resultes_knokout)[-c(1,2)] <- fixtures$NameID[49:64]
+  names(temp_resultes_knokout)[-c(1,2)] <- fixtures$NameID.y[49:64]
   
   
   
   user_guesses <- all_df_list$resultes$df %>% 
     select(-`Submission ID`) %>% 
     melt(id = 'User_Nick') %>% select(User = `User_Nick`,Match = variable, Resulte = value) %>%
-    inner_join(all_df_list$fixtures$df %>% select(Match = NameID,Stage,Group,Date,Hour,GameID),
+    inner_join(all_df_list$fixtures$df %>% select(Match = NameID.y,Stage,Group,Date,Hour,GameID),
                by = c("Match")) %>% select(User,GameID,Stage,Group,Date,Hour,Match,Resulte) %>% 
     arrange(GameID)
 }
@@ -323,6 +358,15 @@ date.id <- fixtures %>% select(Date,GameID) %>% arrange(GameID) %>%
   current_Game_Name <- (resultes_edited %>% filter(GameID == current_game) %>% select(NameID))[1,1]
   
   current_cup_rank <-   fixtures$Cup_Rank[which(fixtures$GameID == current_game)]
+}
+
+# all UI filter selection options
+{
+  choices <- list(
+    nameID = unique(fixtures$NameID.y)[c(current_game:64,1:(current_game-1))],
+    userID = c(levels(sort(User_ID$`User_Nick`))),
+    Cup = unique((fixtures %>% filter(Cup_Stage != "None"))$Cup_Stage)
+  )
 }
 
 ### Data preperation for the "Rank users by competiton day" Graph
@@ -374,6 +418,7 @@ date.id <- fixtures %>% select(Date,GameID) %>% arrange(GameID) %>%
   user_rank_by_day$Rank <- as.numeric(user_rank_by_day$Rank)
 }
 }
+
 
 # Define server logic required to draw a histogram
 shinyServer(function(input, output) {
@@ -795,7 +840,7 @@ shinyServer(function(input, output) {
     
     game = as.character(input$nameID)
     HTML(paste0('<div style = "background-color: #F70443; width: 100%; height: 25px; border-radius: 4px;">
-                <center> <font size="4"> <font color="#F8F9F9">',game,
+               <center> <font size="4"> <font color="#F8F9F9">',game,
                 '</div>'))
     
     
@@ -1265,6 +1310,7 @@ shinyServer(function(input, output) {
   output$terms3 <- renderUI({tags$img(src= 'http://farm2.staticflickr.com/1727/40553341900_72491ce6f0_b.jpg',height = "600px",width = "380px")})
   output$terms4 <- renderUI({tags$img(src= 'http://farm2.staticflickr.com/1749/41637765894_1f19062eea_b.jpg',height = "500px",width = "380px")})
   output$terms5 <- renderUI({tags$img(src= 'http://farm2.staticflickr.com/1745/41637765524_0e0869bd46_b.jpg',height = "500px",width = "380px")})
+  output$pre_cup <- renderUI({tags$img(src= 'http://i67.tinypic.com/262np5h.png',height = "200px",width = "360px")})
   
   ############# CUP   ############# 
   output$cup_table <- renderDataTable({
