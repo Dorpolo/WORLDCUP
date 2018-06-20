@@ -1,3 +1,4 @@
+
 #Data Preperation
 {
 #Required Packages
@@ -419,8 +420,8 @@ date.id <- fixtures %>% select(Date,GameID) %>% arrange(GameID) %>%
 }
 }
 
-
 # Define server logic required to draw a histogram
+
 shinyServer(function(input, output) {
 
   autoInvalidate <- reactiveTimer(200000)
@@ -858,6 +859,7 @@ shinyServer(function(input, output) {
     
     
     ##
+    
     all_df_list$fixtures$df <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX",
                                                    "-1vQ4jRITA24Oj_h-i4cVxEGstFTS7-qKH0bv_pp61h-Jj4G",
                                                    "0t-fLh6TUiZU-Qor1WA2pt50TJkENnCkh/pub?gid=0&single=true&output=csv")),
@@ -895,15 +897,18 @@ shinyServer(function(input, output) {
                                           true_Home_Goals = results.home ,
                                           true_Away_Goals = results.visitor ,
                                           finished,
-                                          countdown) %>% mutate(started = ifelse(countdown == 0,TRUE,FALSE),
-                                                                active  = ifelse(finished  == FALSE & countdown == 0,TRUE,FALSE)) %>% 
+                                          countdown,
+                                          home.logo,
+                                          visitor.logo) %>% mutate(started = ifelse(countdown == 0,TRUE,FALSE),
+                                                                   active  = ifelse(finished  == FALSE & countdown == 0,TRUE,FALSE)) %>% 
         left_join(fixtures %>% select(new_id,NameID),by = c('GameID'='new_id'))   %>% mutate(Active_Included = ifelse(started == TRUE & active == FALSE,'Complited Games',
                                                                                                                       ifelse(started == TRUE & active == TRUE,'Active Games',
                                                                                                                              'Future Games'))) %>% 
         mutate(true_Direction  = ifelse(true_Home_Goals>true_Away_Goals,"Home",
                                         ifelse(true_Home_Goals<true_Away_Goals,"Away",
                                                "Draw"))) %>%
-        select(GameID,NameID,countdown,finished,started,active,Active_Included,true_Home_Goals,true_Away_Goals,true_Direction)
+        select(GameID,NameID,countdown,finished,started,active,Active_Included,true_Home_Goals,true_Away_Goals,true_Direction,home.logo,
+               visitor.logo)
       
       partial_fixtures$new_id <- as.character(partial_fixtures$new_id)
       
@@ -1031,18 +1036,24 @@ shinyServer(function(input, output) {
                    fixtures$true_Away[current_game])
     
     hour <- hour(Sys.time()) + 3
+    
     minute <- ifelse(nchar(minute(Sys.time())) == 1,paste0(0,minute(Sys.time())),minute(Sys.time()))
     
     countdown_to <- paste0('Countdown - ',round(fixtures$countdown[current_game]/(60),0)," minutes ")
     
+    img_home <- paste0('<IMG SRC=',fixtures$home.logo[current_game],' WIDTH=24 HEIGHT=20>')
+ 
+    img_away <- paste0('<IMG SRC=',fixtures$visitor.logo[current_game],' WIDTH=24 HEIGHT=20>')
+    
+
     if(fixtures$countdown[current_game] == 0)
     {
       html_text <- paste0('<div style = "background-color: #F70443; width: 100%; height: 75px; border-radius: 4px;">
-                <center> <font size="4"> <font color="#F8F9F9"> Live Score : <br>',text,'<br>',hour,":", minute,
+                <center> <font size="4"> <font color="#F8F9F9"> Live Score : <br>',img_home," ",text," ",img_away,'<br>',hour,":", minute,
                      '</div>')
     }else{
       html_text <- paste0('<div style = "background-color: #F70443; width: 100%; height: 75px; border-radius: 4px;">
-                <center> <font size="4"> <font color="#F8F9F9"> Next Game : <br>',text,'<br>',countdown_to,
+                <center> <font size="4"> <font color="#F8F9F9"> Next Game : <br>',img_home," ",text," ",img_away,'<br>',countdown_to,
                      '</div>')
     }
    
