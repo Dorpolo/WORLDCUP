@@ -1,4 +1,3 @@
-
 #Data Preperation
 {
 #Required Packages
@@ -686,33 +685,44 @@ shinyServer(function(input, output) {
                   color = styleEqual(c('Yes','No'),c('green','red'))) 
   })
   
-  user_predictions <- user_guesses %>% left_join(fixtures %>% select(GameID,Active_Included),by = c('GameID'))
+  user_predictions <- user_guesses %>% left_join(fixtures %>% select(GameID,Active_Included),by = c('GameID')) %>%
+    select(User,Date,GameID,Stage,Group,Date,Hour,Match,Prediction = Resulte,Active_Included) 
   
   # User Guesses Tab II 
   
+  order <- rep(c(current_game:48,1:(current_game-1)))
+  
+  game_order <- as.data.frame((fixtures %>% filter(GameID <= 48) %>% select(NameID.y))[order,]) %>% mutate(ord = 1:48) 
+  names(game_order) <- c('NameID','order')
+  
+  user_predictions <- user_predictions %>% left_join(game_order,by=c('Match'='NameID')) %>% arrange(order)
+  
+  
   polo_5 <- reactive({ user_predictions %>%
-      filter(User %in% input$userID) %>% select(-c(GameID,Hour,Stage))
+                          filter(User %in% input$userID)
   })
   
   # User Guesses Tab Output II 
   
   output$user_guess <- renderDataTable({
     
-    datatable(data = polo_5() %>% mutate(finished = ifelse(Active_Included=="Complited Games",'Yes','No')) %>% select(-Active_Included),
+    datatable(data = (polo_5() %>% mutate(finished = ifelse(Active_Included=="Complited Games",'Yes','No')) %>% select(-Active_Included)),
               options = list(pageLength = 48,
+                             scrollY=TRUE,
                              searching = FALSE,
                              columnDefs = list(list(width = '10px', targets = "_all"),
-                                               list(className = 'dt-center', targets = "_all"))), 
+                                               list(className = 'dt-center', targets = "_all"),
+                                               list(visible = FALSE, targets=c(2,3,5,8,9)))), 
               rownames = FALSE,
               class = 'cell-border stripe') %>% 
       formatStyle("finished",
                   target = 'row',
-                  backgroundColor  = styleEqual(c('Yes','No'),c("#E3D7E5","white")),
+                  backgroundColor  = styleEqual(c('Yes','No'),c("#EAEDED","white")),
                   color = "#00384A") 
     
   })
   
-  ################ Dorki ###########################
+  ########### Dorki ################
   {
   next_game_tbl <- reactive({
     resultes_edited %>%
@@ -850,13 +860,11 @@ shinyServer(function(input, output) {
   
   }
   
-  
-  ############# Title for Live Game #############
+  #####Title for Live Game #########
   
   output$title <- renderUI({
     
     autoInvalidate()
-    
     
     ##
     
@@ -899,7 +907,8 @@ shinyServer(function(input, output) {
                                           finished,
                                           countdown,
                                           home.logo,
-                                          visitor.logo) %>% mutate(started = ifelse(countdown == 0,TRUE,FALSE),
+                                          visitor.logo,
+                                          progress) %>% mutate(started = ifelse(countdown == 0,TRUE,FALSE),
                                                                    active  = ifelse(finished  == FALSE & countdown == 0,TRUE,FALSE)) %>% 
         left_join(fixtures %>% select(new_id,NameID),by = c('GameID'='new_id'))   %>% mutate(Active_Included = ifelse(started == TRUE & active == FALSE,'Complited Games',
                                                                                                                       ifelse(started == TRUE & active == TRUE,'Active Games',
@@ -908,7 +917,7 @@ shinyServer(function(input, output) {
                                         ifelse(true_Home_Goals<true_Away_Goals,"Away",
                                                "Draw"))) %>%
         select(GameID,NameID,countdown,finished,started,active,Active_Included,true_Home_Goals,true_Away_Goals,true_Direction,home.logo,
-               visitor.logo)
+               visitor.logo,progress)
       
       partial_fixtures$new_id <- as.character(partial_fixtures$new_id)
       
@@ -1039,17 +1048,22 @@ shinyServer(function(input, output) {
     
     minute <- ifelse(nchar(minute(Sys.time())) == 1,paste0(0,minute(Sys.time())),minute(Sys.time()))
     
-    countdown_to <- paste0('Countdown - ',round(fixtures$countdown[current_game]/(60),0)," minutes ")
+    residual <- round((((fixtures$countdown[current_game] / 3600) - floor(fixtures$countdown[current_game]/(3600)))/1)*60,0)
+    
+    countdown_to <- ifelse(fixtures$countdown[current_game]/60 <= 60,
+                           paste0('#countdown - ',round(fixtures$countdown[current_game]/(60),0)," minutes "),
+                           paste0('#countdown - ',floor(fixtures$countdown[current_game]/(3600))," hours and ",residual,' minutes'))
     
     img_home <- paste0('<IMG SRC=',fixtures$home.logo[current_game],' WIDTH=24 HEIGHT=20>')
  
     img_away <- paste0('<IMG SRC=',fixtures$visitor.logo[current_game],' WIDTH=24 HEIGHT=20>')
     
+    min <- ifelse(fixtures$progress[current_game] %in% c('full-time','future'),paste0(hour,":", minute),fixtures$progress[current_game])
 
     if(fixtures$countdown[current_game] == 0)
     {
       html_text <- paste0('<div style = "background-color: #F70443; width: 100%; height: 75px; border-radius: 4px;">
-                <center> <font size="4"> <font color="#F8F9F9"> Live Score : <br>',img_home," ",text," ",img_away,'<br>',hour,":", minute,
+                <center> <font size="4"> <font color="#F8F9F9"> Live Score : <br>',img_home," ",text," ",img_away,'<br>',min,
                      '</div>')
     }else{
       html_text <- paste0('<div style = "background-color: #F70443; width: 100%; height: 75px; border-radius: 4px;">
@@ -1334,9 +1348,8 @@ shinyServer(function(input, output) {
                                                    "0t-fLh6TUiZU-Qor1WA2pt50TJkENnCkh/pub?gid=0&single=true&output=csv")),
                                         stringsAsFactors = FALSE)
     
-    
-    fixtures <- all_df_list$fixtures$df
-    
+    fixtures <-  all_df_list$fixtures$df 
+  
     ### Function that generate cup ready data frame in a given dataset (which I created above)
     cup_gen <- function(x,n=60,k=4) # x is the relevant dataframe, n = N_users*number_of_games_in_stage/2 k = Number of games in cup Stage
     {
@@ -1445,7 +1458,6 @@ shinyServer(function(input, output) {
       
     }
     
-    
     # resultes_edited - data join between user's predictions & real results
     {
       # Results edited join between the fixtures and the user results (Group Stage), for each user, in each game 
@@ -1514,7 +1526,7 @@ shinyServer(function(input, output) {
       ### Very Importent - If there is an active game will indicate on him, else - will indicate on the next comming game ### 
       
       current_game <- ifelse(all(resultes_edited$active == FALSE),
-                             max(resultes_edited$GameID[which(resultes_edited$started==TRUE)])+1,
+                             max(resultes_edited$GameID[which(resultes_edited$started==TRUE)])+1-1,
                              resultes_edited$GameID[which(resultes_edited$active == TRUE)[1]])
       
       current_Game_Name <- (resultes_edited %>% filter(GameID == current_game) %>% select(NameID))[1,1]
@@ -1653,6 +1665,8 @@ shinyServer(function(input, output) {
       
       
     }
+    
+    
     
     
     DT::datatable(ready_data_cup,
