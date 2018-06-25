@@ -1,3 +1,4 @@
+
 # This is the user-interface definition of a Shiny web application. You can
 # run the application by clicking 'Run App' above.
 #
@@ -41,7 +42,6 @@
                                   "-1vQ4jRITA24Oj_h-i4cVxEGstFTS7-qKH0bv_pp61h-Jj4G",
                                   "0t-fLh6TUiZU-Qor1WA2pt50TJkENnCkh/pub?gid=0&single=true&output=csv")),
                        stringsAsFactors = FALSE)
-  
   
   
   ### Fixtures & Score API Joined 
@@ -196,6 +196,7 @@ ui <- fluidPage(theme = shinytheme("slate"),
                     tabsetPanel(type = "tabs",
                                 tabPanel(title = "League Table",
                                          h4("League Table"),
+                                         tableOutput("fz_league"),
                                          DT::dataTableOutput(outputId = "league_table"),
                                          br(),
                                          plotOutput(outputId = "lineplot",
@@ -208,11 +209,15 @@ ui <- fluidPage(theme = shinytheme("slate"),
                                 tabPanel(title =  'Live Game',
                                          htmlOutput("title"),
                                          DT::dataTableOutput(outputId = "result_table"),
-                                         visNetworkOutput(outputId = "network",height = "500px")),
+                                         tableOutput("results_one"),
+                                         visNetworkOutput(outputId = "network",height = "500px"),
+                                         htmlOutput("title_second_game"),
+                                         tableOutput("results_two"),
+                                         visNetworkOutput(outputId = "network_second_game",height = "500px")),
                                 tabPanel(title =  'CUP',
                                          h3("The FZ Cup"),
-                                         uiOutput(outputId = "pre_cup"),
-                                         DT::dataTableOutput(outputId = "cup_table")       
+                                         tableOutput("the_cup")
+      
                                 ),
                                 
                                 tabPanel(title = "User Predictions",
