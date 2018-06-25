@@ -409,7 +409,7 @@ shinyServer(function(input, output) {
   autoInvalidate <- reactiveTimer(200000)
   
   # Genrate Offical User's League
-  output$league_table <- DT::renderDataTable({
+  output$fz_league <- function() {
     
     autoInvalidate()
     
@@ -423,7 +423,7 @@ shinyServer(function(input, output) {
     
     
     ### Fixtures & Score API Joined 
-      {
+    {
       fixtures <- read.csv(url(paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vTNgD6oZivKRepzwPWDc",
                                       "YMg4tOQQq8B3sJLFdtHHE7p8lYs4lv_C4Wk_B3lkAPx-nZA",
                                       "4O6DETuEAhxw/pub?gid=0&single=true&output=csv")),
@@ -468,7 +468,7 @@ shinyServer(function(input, output) {
       fixtures <- final
       all_df_list$fixtures$df <- final
     }
-
+    
     # resultes_edited - data join between user's predictions & real results
     {
       # Results edited join between the fixtures and the user results (Group Stage), for each user, in each game 
@@ -520,7 +520,7 @@ shinyServer(function(input, output) {
       # Empty vector
       user_game_points <- rep(NA,nrow(resultes_edited))
       
-
+      
       worldcup_points <- function(x)
       {
         if(x$started %in% c("TRUE"))
@@ -573,47 +573,48 @@ shinyServer(function(input, output) {
     # Will serve us in the main user league output
     only_rank_for_vlookup <- league_standings %>% select(User_Nick,Rank)
     
+    data = user_results_validation %>% 
+      group_by(`User_Nick`) %>% 
+      summarise(Points = sum(user_game_points),
+                Boom = sum(boom),
+                WG = sum(winning_goals),
+                Pct =  percent(sum(user_game_points)/(4*sum((Active_Included=="Complited Games" | Active_Included=="Active Games"))-sum((Active_Included=="Complited Games" | Active_Included=="Active Games") & Stage=="Group Stage"))),
+                Games = sum(started == TRUE)) %>% 
+      arrange(desc(Points),
+              desc(Boom),
+              desc(WG)) %>% 
+      left_join(only_rank_for_vlookup,by = c("User_Nick")) %>% 
+      left_join(User_ID %>% select(User_Nick,Img),by = c("User_Nick")) %>% 
+      select(Rank,User=Img,Name = `User_Nick`,everything()) 
+    
+    prev_game_name <- fixtures$NameID.y[current_game-1]
+    
+    last_game_pts <- data.frame(User = unique(user_results_validation$User_Nick),
+                                `Last Game Pts` = user_results_validation$user_game_points[which(user_results_validation$NameID == prev_game_name)])
+
+    data_inc <- data %>% left_join(last_game_pts,by=c('Name'='User')) %>% select(everything(),`Last`=Last.Game.Pts) %>% 
+      mutate(
+        `Last Game` = cell_spec(Last, color = "white", align = "c", 
+                        background = factor(Last, c(0, 1, 3), 
+                                            c("#F04A2C", "#5B76A9", "#2EBA4A")))
+      ) %>% select(-Last)
     
     
-    DT::datatable(data = user_results_validation %>% 
-                    group_by(`User_Nick`) %>% 
-                    summarise(Points = sum(user_game_points),
-                              Boom = sum(boom),
-                              WG = sum(winning_goals),
-                              Pct =  percent(sum(user_game_points)/(4*sum((Active_Included=="Complited Games" | Active_Included=="Active Games"))-sum((Active_Included=="Complited Games" | Active_Included=="Active Games") & Stage=="Group Stage"))),
-                              Games = sum(started == TRUE)) %>% 
-                    arrange(desc(Points),
-                            desc(Boom),
-                            desc(WG)) %>% 
-                    left_join(only_rank_for_vlookup,by = c("User_Nick")) %>% 
-                    left_join(User_ID %>% select(User_Nick,Img),by = c("User_Nick")) %>% 
-                    select(Rank,User=Img,Name = `User_Nick`,everything()),
-                  options = list(pageLength = N_users,
-                                 lengthChange=FALSE,
-                                 initComplete = JS(
-                                   "function(settings, json) {",
-                                   "$(this.api().table().header()).css({'background-color': '#F70443', 'color': '#FFFF00'});",
-                                   "}"),
-                                 searching = FALSE,
-                                 columnDefs = list(list(width = 200, targets =  "_all" ),
-                                                   list(className = 'dt-center', targets = "_all")),
-                                 scrollX=TRUE,
-                                 scrollCollapse=TRUE,
-                                 lengthMenu = c(10,20,N_users)), 
-                  rownames = FALSE,
-                  escape = FALSE,
-                  class = 'cell-border stripe') %>% 
-      formatStyle('Rank',
-                  target = 'row',
-                  color  = styleEqual(c(1,2:5,6:N_users),c('#641E16',rep('#00384A',4),rep('#00384A',(N_users-6+1))))) %>%
-      formatStyle('Rank',
-                  target = 'row',
-                  fontWeight = styleEqual(c(1:5),rep("bold",5)))
+
+    ##############  |Final Output| ###################
+    
+    kable(data_inc,escape = F,
+          booktabs = T, align = "c", linesep = '') %>%
+      kable_styling("striped", full_width = F) %>%
+      row_spec(1:5, color = "#F05C2C") %>%
+      row_spec(1,bold = T, color = "#F7DC6F") %>%
+      scroll_box(box_css = "border: 1px solid #272B30; padding: 5px; ")
     
     
+    ###################################################
     
     
-  })
+  }
   
   # Reactive Data frame for the User predictions and the User Rank plot
   polo_3 <- reactive({user_rank_by_day %>% filter(`User` %in% input$userID)})
@@ -1384,8 +1385,9 @@ shinyServer(function(input, output) {
   
   ############# Live Game Indicator #############
   
-  output$result_table <- DT::renderDataTable({
+  output$results_one <- function() {
     
+ 
     autoInvalidate()
     
     
@@ -1549,7 +1551,7 @@ shinyServer(function(input, output) {
     names(knokout) <- c('User_Nick',sort(c(names_knok,dup_names_knok)))
     
     
-  
+    
     # Extracting competition parameters 
     {
       N_users <- nrow(User_ID)
@@ -1608,30 +1610,24 @@ shinyServer(function(input, output) {
     
     
     
-    DT::  datatable(data = user_predictions,
-                    rownames = FALSE,
-                    escape = FALSE,
-                    class = 'cell-border stripe',
-                    options = list( searching = FALSE,
-                                    lengthChange=FALSE,
-                                    autoWidth = TRUE,
-                                    columnDefs = list(list(width = "10px", targets =  "_all" ),
-                                                      list(className = 'dt-center', targets = "_all"))))     %>% 
-      formatStyle("User",
-                  target = 'row',
-                  color =    "#00384A" )     %>% 
-      formatStyle("User",
-                  target = 'row',
-                  backgroundColor =    "#FEF9E7" )     %>%
-      formatStyle('User',
-                  target = 'row',
-                  fontWeight ="bold")
     
-  })
+    ##############  |Final Output| ###################
+    
+    kable(user_predictions,escape = F,
+          booktabs = T, align = "c", linesep = '') %>%
+      kable_styling("striped", full_width = F) %>%
+      row_spec(1:nrow(user_predictions), color = "#F6F4F5", background = "#393135") %>%
+      scroll_box(height = "300px",box_css = "border: 1px solid #272B30; padding: 5px; ")
+    
+    
+    ###################################################
+    
+    
+  }
   
   ## Second Game
-  
-  output$result_table_second_game <- DT::renderDataTable({
+
+  output$results_two <- function() {
     
     autoInvalidate()
     
@@ -1859,26 +1855,19 @@ shinyServer(function(input, output) {
     
     
     
-    DT::  datatable(data = user_predictions,
-                    rownames = FALSE,
-                    escape = FALSE,
-                    class = 'cell-border stripe',
-                    options = list( searching = FALSE,
-                                    lengthChange=FALSE,
-                                    autoWidth = TRUE,
-                                    columnDefs = list(list(width = "10px", targets =  "_all" ),
-                                                      list(className = 'dt-center', targets = "_all"))))     %>% 
-      formatStyle("User",
-                  target = 'row',
-                  color =    "#00384A" )     %>% 
-      formatStyle("User",
-                  target = 'row',
-                  backgroundColor =    "#FEF9E7" )     %>%
-      formatStyle('User',
-                  target = 'row',
-                  fontWeight ="bold")
+    ##############  |Final Output| ###################
     
-  })
+    kable(user_predictions,escape = F,
+          booktabs = T, align = "c", linesep = '') %>%
+      kable_styling("striped", full_width = F) %>%
+      row_spec(1:nrow(user_predictions), color = "#F6F4F5", background = "#393135") %>%
+      scroll_box(height = "300px",box_css = "border: 1px solid #272B30; padding: 5px; ")
+    
+    
+    ###################################################
+    
+    
+  }
   
   #############  Terms of Use Pictures   ############# 
   output$terms1 <- renderUI({tags$img(src= 'http://farm2.staticflickr.com/1755/40553342420_2b7812f781_b.jpg',height = "600px",width = "380px")})
@@ -2211,6 +2200,7 @@ shinyServer(function(input, output) {
   })
   
   ## Second Game
+  
   output$network_second_game <- renderVisNetwork({
     
     autoInvalidate()
@@ -2537,6 +2527,7 @@ shinyServer(function(input, output) {
   })
   
   ############# CUP   ############# 
+  
   output$the_cup <- function() {
     
     autoInvalidate()
