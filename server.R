@@ -1,3 +1,4 @@
+
 #Data Preperation
 {
 #Required Packages
@@ -558,6 +559,22 @@ shinyServer(function(input, output) {
     
     # THE OFFICAL LEAGUE TABLE - INCLUDING REAL TIME UPDATES #
     
+    
+    
+    # 'Current' Parameters - current game, current game name, current cup rank, etc
+    {
+      ### Very Importent - If there is an active game will indicate on him, else - will indicate on the next comming game ### 
+      
+      current_game <- ifelse(all(fixtures$active == FALSE),
+                             max(fixtures$GameID[which(fixtures$started==TRUE)])+1,
+                             fixtures$GameID[which(fixtures$active == TRUE)[1]])
+      
+      current_Game_Name <- (fixtures %>% filter(GameID == current_game) %>% select(NameID.y))[1,1]
+      
+      current_cup_rank <-   fixtures$Cup_Rank[which(fixtures$GameID == current_game)]
+    }
+    
+    
     # User's league table #asItStands 
     {
       league_standings <- user_results_validation %>%  
@@ -586,6 +603,11 @@ shinyServer(function(input, output) {
       left_join(only_rank_for_vlookup,by = c("User_Nick")) %>% 
       left_join(User_ID %>% select(User_Nick,Img),by = c("User_Nick")) %>% 
       select(Rank,User=Img,Name = `User_Nick`,everything()) 
+    
+    
+    
+    
+    
     
     prev_game_name <- fixtures$NameID.y[current_game-1]
     
@@ -973,6 +995,10 @@ shinyServer(function(input, output) {
                            row.names = NULL)
         fixt <- bind_rows(fixt,b)
       }
+      
+      data.frame(fixt$id,fixt$home.name,fixt$visitor.name,fixt$home_score,fixt$visitor_score)
+      
+      
       
       fixt$countdown <- as.numeric(fixt$countdown)
       fixtures$new_id <- as.character(fixtures$new_id)
