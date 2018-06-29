@@ -10,7 +10,7 @@
 
 # WorldCup Friends Zone - Shiny App #####
 
-#Required Packages
+#Required Packages++
 {
   library(shiny)
   library(ggplot2)
@@ -88,7 +88,7 @@
     final <- partial_fixtures %>% inner_join(fixt_to_be_added,by = c('new_id'='GameID'))
     
     fixtures <- final
-
+    
   }
   
   
@@ -217,7 +217,7 @@ ui <- fluidPage(theme = shinytheme("slate"),
                                 tabPanel(title =  'CUP',
                                          h3("The FZ Cup"),
                                          tableOutput("the_cup")
-      
+                                         
                                 ),
                                 
                                 tabPanel(title = "User Predictions",
