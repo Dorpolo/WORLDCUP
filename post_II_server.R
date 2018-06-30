@@ -1,4 +1,3 @@
-
 #Data Preperation
 {
   #Required Packages
@@ -722,7 +721,7 @@ shinyServer(function(input, output) {
     data_inc <- data %>% left_join(last_game_pts,by=c('Name'='User')) %>% select(everything(),`Last`=Last.Game.Pts) %>% 
       mutate(
         `Last Game` = cell_spec(Last, color = "white", align = "c", 
-                                background = factor(Last, c(0, 1, 3), 
+                                background = factor(Last, c(0, 1, 4), 
                                                     c("#F04A2C", "#5B76A9", "#2EBA4A")))
       ) %>% select(-Last)
     
@@ -2348,3 +2347,4 @@ shinyServer(function(input, output) {
 
 
 
+ 
