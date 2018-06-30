@@ -7,7 +7,6 @@
 #
 
 
-
 ##### WorldCup Friends Zone - Shiny App #####
 
 #Required Packages
@@ -26,6 +25,25 @@
   library(XML)
   library(RCurl)
   library(httr)
+  #Required Packages
+  {
+    library(shiny)
+    library(ggplot2)
+    library(reshape2)
+    library(plyr)
+    library(dplyr)
+    library(tidyr)
+    library(shinythemes)
+    library(DT)
+    library(scales)
+    library(visNetwork)
+    library(lubridate)
+    library(XML)
+    library(RCurl)
+    library(httr)
+    library(kableExtra)
+  }
+  
 }
 
 ### Loading Data Sets from Google Sheets
@@ -200,6 +218,7 @@ ui <- fluidPage(theme = shinytheme("slate"),
                                 tabPanel(title = "Viola League Table",
                                          h4("League Table"),
                                          DT::dataTableOutput(outputId = "league_table"),
+                                         tableOutput("fz_league"),
                                          br(),
                                          plotOutput(outputId = "lineplot",
                                                     click = "plot_click")),
@@ -210,13 +229,13 @@ ui <- fluidPage(theme = shinytheme("slate"),
                                          plotOutput(outputId = "pre_game_II", width = "350px", height = "600px")),
                                 tabPanel(title =  'Live Game',
                                          htmlOutput("title"),
-                                         DT::dataTableOutput(outputId = "result_table"),
+                                         tableOutput("results_one"),
                                          visNetworkOutput(outputId = "network",height = "500px")),
                                 tabPanel(title = "User Predictions",
                                          h4("All User Guesses"),
                                          DT::dataTableOutput(outputId = "user_guess"),
                                          br(),
-                                         DT::dataTableOutput(outputId = "table.a"))
+                                         tableOutput("user_choice"))
                                 
                                 
                     ) 
