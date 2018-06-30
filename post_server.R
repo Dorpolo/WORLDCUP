@@ -662,10 +662,8 @@ shinyServer(function(input, output) {
     
   })
   
-
   # User Predictions Output I
-  
-  output$user_choice <-  function() {  ##############  |Final Output| ###################
+  output$user_choice <-  function() {  
   
     resultes_cupwinner <-   read.csv(url(paste0('https://docs.google.com/spreadsheets/d/e/2',
                                       'PACX-1vTQKuVDYTvMW9nB24QGAQ0M5l8xgeUGYbCjGTX3dxeQ1j',
@@ -673,22 +671,24 @@ shinyServer(function(input, output) {
                            stringsAsFactors = FALSE)
     
  
-    
     # Adjestment
     resultes_cupwinner <- resultes_cupwinner %>% select(User.Name,Winner,Top_Scorer)
     resultes_cupwinner <- resultes_cupwinner %>% 
       left_join(User_ID %>% 
                   select(Full.Name,User_Nick),by = c('User.Name'='Full.Name')) %>% arrange(Winner,Top_Scorer) %>% 
       select(User=User_Nick,`Cup Winner`=Winner,`Top Scorer`=Top_Scorer) 
+ 
+   logoID <-  fixt %>% distinct(home.name,.keep_all = TRUE) %>% arrange(home.name) %>% filter(home.id %in% c(21,13,25,17,6,9,28,4)) %>% 
+      select(org_name=home.name,logo=home.logo) %>% mutate(name = c('Germany','Argentina','Belgium','Brazil','Spain','France','England','Uruguay')) %>%
+     select(org_name,name,logo) %>% mutate(Img=paste0("<img src= ",logo," height='17' width='25'/> ")) %>% select(name,Img)
     
-    
-  kable(resultes_cupwinner,escape = F,
+   output <- resultes_cupwinner %>% left_join(logoID,by = c('Cup Winner'='name')) %>% select(User,Winner=Img,`Top Scorer`)
+   
+  kable(output,escape = F,
         booktabs = T, align = "c", linesep = '') %>%
     kable_styling("striped", full_width = F) %>%
-    row_spec(1:nrow(resultes_cupwinner), color = "#fff") 
-  
-  
-  ###################################################
+    column_spec(1, color = "#F4D03F") %>%
+    column_spec(3, color = "#FC6351")
   
   
 }
@@ -1377,7 +1377,7 @@ shinyServer(function(input, output) {
     r_16 <- resultes_knokout[1:N_users,2:18]
     r_8  <- resultes_knokout[(N_users+1):(2*N_users),c(2,19:26)]
     r_4  <- resultes_knokout[(2*N_users+1):(3*N_users),c(2,27:30)]
-    r_2  <- resultes_knokout[(3*N_users+1):(5*N_users),c(2,31:34)]
+    r_2  <- resultes_knokout[(3*N_users+1):(4*N_users),c(2,31:34)]
     
     knokout <- r_16 %>% inner_join(r_16) %>%
       inner_join(r_8) %>%
@@ -1387,7 +1387,11 @@ shinyServer(function(input, output) {
     
     names_knok <- initial_fixtures$NameID[49:nrow(initial_fixtures)]
     dup_names_knok <- paste0(names_knok," - winner")
-    names(knokout) <- c('User_Nick',sort(c(names_knok,dup_names_knok)))
+    names_oredr <- c(1,2,18,3,19,4,20,5,21,6,22,7,23,8,24,9,25,10,26,11,27,12,28,13,29,14,30,15,31,16,32,17,33)
+
+names(knokout) <- c('User_Nick',c(names_knok,dup_names_knok))[names_oredr]
+    
+    
     
     
     
@@ -1415,9 +1419,9 @@ shinyServer(function(input, output) {
     all_games <- all_df_list$resultes$df %>% inner_join(knokout,
                                                         by = c('User_Nick'))
     
-    
-    
+
     test_game_pre_result <- all_games %>% select(User = 'User_Nick',current_Game_Name) 
+    
     ##
     
     test_game <- test_game_pre_result %>% 
@@ -1623,7 +1627,7 @@ shinyServer(function(input, output) {
     r_16 <- resultes_knokout[1:N_users,2:18]
     r_8  <- resultes_knokout[(N_users+1):(2*N_users),c(2,19:26)]
     r_4  <- resultes_knokout[(2*N_users+1):(3*N_users),c(2,27:30)]
-    r_2  <- resultes_knokout[(3*N_users+1):(5*N_users),c(2,31:34)]
+    r_2  <- resultes_knokout[(3*N_users+1):(4*N_users),c(2,31:34)]
     
     knokout <- r_16 %>% inner_join(r_16) %>%
       inner_join(r_8) %>%
@@ -1633,7 +1637,9 @@ shinyServer(function(input, output) {
     
     names_knok <- initial_fixtures$NameID[49:nrow(initial_fixtures)]
     dup_names_knok <- paste0(names_knok," - winner")
-    names(knokout) <- c('User_Nick',sort(c(names_knok,dup_names_knok)))
+    names_oredr <- c(1,2,18,3,19,4,20,5,21,6,22,7,23,8,24,9,25,10,26,11,27,12,28,13,29,14,30,15,31,16,32,17,33)
+    
+    names(knokout) <- c('User_Nick',c(names_knok,dup_names_knok))[names_oredr]
     
     
     # Extracting competition parameters 
@@ -1944,9 +1950,7 @@ shinyServer(function(input, output) {
     }
     
     # THE OFFICAL LEAGUE TABLE - INCLUDING REAL TIME UPDATES #
-    
-    
-    
+  
     # 'Current' Parameters - current game, current game name, current cup rank, etc
     {
       ### Very Importent - If there is an active game will indicate on him, else - will indicate on the next comming game ### 
@@ -2394,4 +2398,8 @@ shinyServer(function(input, output) {
   }
   
   })
+
+
+
+
 
