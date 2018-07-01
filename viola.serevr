@@ -676,7 +676,7 @@ shinyServer(function(input, output) {
     
     prev_game_name <- fixtures$NameID.y[current_game-1]
     
-    last_game_pts <- data.frame(User = unique(user_results_validation$User_Nick),
+ last_game_pts <- data.frame(User = user_results_validation$User_Nick[which(user_results_validation$NameID == prev_game_name)]   ,
                                 `Last Game Pts` = user_results_validation$user_game_points[which(user_results_validation$NameID == prev_game_name)])
     
     data_inc <- data %>% left_join(last_game_pts,by=c('Name'='User')) %>% select(everything(),`Last`=Last.Game.Pts) %>% 
