@@ -1,4 +1,3 @@
-
 # This is the user-interface definition of a Shiny web application. You can
 # run the application by clicking 'Run App' above.
 #
@@ -142,9 +141,12 @@
   N_games_complited = sum(fixtures$started == TRUE & fixtures$active == FALSE)
   N_games = sum(fixtures$started == TRUE)
   
-  current_game <- ifelse(all(fixtures$active == FALSE),
-                         max(fixtures$GameID[which(fixtures$started==TRUE)])+1,
-                         fixtures$GameID[which(fixtures$active == TRUE)[1]])
+
+    current_game <- ifelse(all(fixtures$active == FALSE),
+                           fixtures$GameID[64],
+                           fixtures$GameID[64])
+  
+
   
   current_Game_Name <- (fixtures %>% filter(GameID == current_game) %>% select(NameID.y))[1,1]
   
